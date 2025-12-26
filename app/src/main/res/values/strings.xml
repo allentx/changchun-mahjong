@@ -1,6 +1,30 @@
 <resources>
-    <string name="app_name">Changchun Mahjong</string>
-    <string name="welcome_message">Welcome to Changchun Mahjong</string>
-    <string name="start_game">Start Game</string>
-    <string name="settings">Settings</string>
+    <string name="app_name">长春麻将</string>
+    <string name="start_game">开始游戏</string>
+    <string name="resources_loading">资源加载中...</string>
+    <string name="settings">设置</string>
+    
+    <!-- Game Actions -->
+    <string name="chi">吃</string>
+    <string name="peng">碰</string>
+    <string name="gang">杠</string>
+    <string name="hu">胡</string>
+    
+    <!-- Game Info -->
+    <string name="turn_you">轮到你</string>
+    <string name="turn_ai">轮到电脑</string>
+    <string name="wall_count">剩余牌数: %d</string>
+    <string name="not_your_turn">还没轮到你！</string>
+    <string name="wall_empty">荒牌了！</string>
+    <string name="not_hu_yet">还没胡呢。</string>
+    <string name="you_drew_tile">你摸到了: %s</string>
+    <string name="ai_discard">%1$s 打出了 %2$s</string>
+    <string name="assets_loaded">资源加载完成！</string>
+    
+    <array name="player_names">
+        <item>我</item>
+        <item>电脑1 (南)</item>
+        <item>电脑2 (西)</item>
+        <item>电脑3 (北)</item>
+    </array>
 </resources>

@@ -15,25 +15,26 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+        // Setup AssetManager Preloading
+        com.allentx.changchunmahjong.util.AssetManager assetManager = com.allentx.changchunmahjong.util.AssetManager
+                .getInstance();
+        if (!assetManager.isLoaded()) {
+            binding.btnStartGame.setEnabled(false);
+            binding.btnStartGame.setText(R.string.resources_loading);
+
+            new Thread(() -> {
+                assetManager.preload(getApplicationContext());
+                runOnUiThread(() -> {
+                    binding.btnStartGame.setEnabled(true);
+                    binding.btnStartGame.setText(R.string.start_game);
+                });
+            }).start();
+        }
+
         // Setup listeners
         binding.btnStartGame.setOnClickListener(v -> {
-            com.allentx.changchunmahjong.logic.GameManager gm = new com.allentx.changchunmahjong.logic.GameManager();
-            gm.startGame();
-
-            // Display Human (Seat 0) Hand
-            StringBuilder sb = new StringBuilder();
-            sb.append("Player 0 Hand:\n");
-            for (com.allentx.changchunmahjong.model.Tile t : gm.getTable().getPlayer(0).getHand()) {
-                sb.append(t.toString()).append(" ");
-            }
-            sb.append("\n\n");
-
-            // Check Hu
-            boolean isHu = com.allentx.changchunmahjong.logic.RuleValidatorHelper
-                    .isHu(gm.getTable().getPlayer(0).getHand());
-            sb.append("Is Hu? ").append(isHu).append("\n");
-
-            binding.textView.setText(sb.toString());
+            android.content.Intent intent = new android.content.Intent(this, GameActivity.class);
+            startActivity(intent);
         });
 
         binding.btnSettings.setOnClickListener(v -> {

@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/mahjong_green"
+    tools:context=".GameActivity">
+
+    <!-- Top Info Bar -->
+    <TextView
+        android:id="@+id/tvGameInfo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/app_name"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- AI 2 (Top) Melds -->
+    <com.google.android.flexbox.FlexboxLayout
+        android:id="@+id/layoutAi2Melds"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        app:flexDirection="row"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- AI 1 (Right) Melds -->
+    <com.google.android.flexbox.FlexboxLayout
+        android:id="@+id/layoutAi1Melds"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp"
+        app:flexDirection="column"
+        app:layout_constraintBottom_toBottomOf="@+id/scrollDiscards"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/scrollDiscards" />
+
+    <!-- AI 3 (Left) Melds -->
+    <com.google.android.flexbox.FlexboxLayout
+        android:id="@+id/layoutAi3Melds"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        app:flexDirection="column"
+        app:layout_constraintBottom_toBottomOf="@+id/scrollDiscards"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/scrollDiscards" />
+
+    <!-- Discard Area (The River) - Center -->
+    <ScrollView
+        android:id="@+id/scrollDiscards"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:background="#1A000000"
+        android:padding="2dp"
+        app:layout_constraintBottom_toTopOf="@+id/layoutExposed"
+        app:layout_constraintEnd_toStartOf="@+id/layoutAi1Melds"
+        app:layout_constraintStart_toEndOf="@+id/layoutAi3Melds"
+        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Melds">
+
+        <com.google.android.flexbox.FlexboxLayout
+            android:id="@+id/flexDiscards"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:flexWrap="wrap"
+            app:alignItems="flex_start"
+            app:alignContent="flex_start"
+            app:justifyContent="flex_start" />
+    </ScrollView>
+
+    <TextView
+        android:id="@+id/tvHandLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="4dp"
+        android:text="我的手牌"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toTopOf="@+id/scrollHand"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Action Buttons (Hidden by default) -->
+    <LinearLayout
+        android:id="@+id/layoutActions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toTopOf="@+id/scrollHand"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <Button
+            android:id="@+id/btnHu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/hu"
+            android:backgroundTint="#FFD700" 
+            android:textColor="@color/black"/>
+            
+        <Button
+            android:id="@+id/btnGang"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/gang" />
+            
+        <Button
+            android:id="@+id/btnPeng"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/peng" />
+
+        <Button
+            android:id="@+id/btnChi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/chi" />
+
+        <Button
+            android:id="@+id/btnPass"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="过"
+            android:backgroundTint="#808080" />
+    </LinearLayout>
+    
+    <!-- Exposed Melds Area -->
+    <com.google.android.flexbox.FlexboxLayout
+        android:id="@+id/layoutExposed"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        app:flexWrap="wrap"
+        app:justifyContent="flex_start"
+        app:layout_constraintBottom_toTopOf="@+id/tvHandLabel"
+        app:layout_constraintStart_toStartOf="parent"
+        android:paddingStart="16dp" />
+
+    <!-- Player Hand - Bottom -->
+    <HorizontalScrollView
+        android:id="@+id/scrollHand"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <LinearLayout
+            android:id="@+id/layoutHand"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:gravity="center_vertical" />
+            
+    </HorizontalScrollView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

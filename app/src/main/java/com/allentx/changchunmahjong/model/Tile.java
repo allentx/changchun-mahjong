@@ -87,6 +87,34 @@ public class Tile implements Comparable<Tile> {
         return suit + ":" + rank;
     }
 
+    public String getChineseName() {
+        String name = "";
+        switch (suit) {
+            case WAN:
+                name = getNumString(rank) + "万";
+                break;
+            case TIAO:
+                name = getNumString(rank) + "条";
+                break;
+            case TONG:
+                name = getNumString(rank) + "饼";
+                break;
+            case ZI:
+                String[] ziNames = { "东风", "南风", "西风", "北风", "红中", "发财", "白板" };
+                if (rank >= 1 && rank <= 7)
+                    name = ziNames[rank - 1];
+                break;
+        }
+        return name;
+    }
+
+    private String getNumString(int r) {
+        String[] nums = { "一", "二", "三", "四", "五", "六", "七", "八", "九" };
+        if (r >= 1 && r <= 9)
+            return nums[r - 1];
+        return "";
+    }
+
     @Override
     public int compareTo(Tile o) {
         int suitCompare = this.suit.compareTo(o.suit);

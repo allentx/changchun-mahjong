@@ -18,6 +18,38 @@ public class GameManager {
         this.random = new Random();
     }
 
+    private int currentPlayerIndex;
+
+    // Returns tile drawn, or null if wall empty
+    public Tile drawTile() {
+        Tile t = table.drawFromWall();
+        if (t != null) {
+            table.getPlayer(currentPlayerIndex).addTile(t);
+        }
+        return t;
+    }
+
+    public void discardTile(int playerIndex, Tile tile) {
+        Player p = table.getPlayer(playerIndex);
+        if (p.getHand().contains(tile)) {
+            p.removeTile(tile);
+            p.addDiscard(tile);
+            table.addDiscard(tile); // Add to communal area
+        }
+    }
+
+    public void setCurrentPlayerIndex(int index) {
+        this.currentPlayerIndex = index;
+    }
+
+    public void advanceTurn() {
+        currentPlayerIndex = (currentPlayerIndex + 1) % 4;
+    }
+
+    public int getCurrentPlayerIndex() {
+        return currentPlayerIndex;
+    }
+
     public Table getTable() {
         return table;
     }
@@ -122,6 +154,9 @@ public class GameManager {
 
         // Round 5: Banker takes one more
         table.getPlayer(banker).addTile(wall.remove(0));
+
+        // Set current turn to Banker
+        currentPlayerIndex = banker;
     }
 
     private int rollDice() {

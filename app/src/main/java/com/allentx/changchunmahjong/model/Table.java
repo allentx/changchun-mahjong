@@ -12,6 +12,7 @@ public class Table {
     private final MahjongSet mahjongSet;
     private final Player[] players;
     private final List<Tile> wall;
+    private final List<Tile> discards; // Added discards list
     private int bankerIndex; // Dealer
 
     // Dice handling for wall breaking
@@ -25,6 +26,7 @@ public class Table {
             players[i] = new Player(i);
         }
         wall = new ArrayList<>();
+        discards = new ArrayList<>(); // Initialize discards list
         bankerIndex = SEAT_EAST; // Default start
     }
 
@@ -35,7 +37,8 @@ public class Table {
         wall.clear();
         wall.addAll(mahjongSet.getTiles());
 
-        // 2. Clear players
+        // 2. Clear players and table discards
+        discards.clear();
         for (Player p : players) {
             p.getHand().clear();
             p.getMelds().clear();
@@ -67,5 +70,13 @@ public class Table {
 
     public List<Tile> getWall() {
         return wall;
+    }
+
+    public void addDiscard(Tile tile) {
+        discards.add(tile);
+    }
+
+    public List<Tile> getDiscards() {
+        return discards;
     }
 }
