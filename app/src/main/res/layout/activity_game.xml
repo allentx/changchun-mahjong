@@ -20,7 +20,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- AI 2 (Top) Melds -->
+    <!-- AI 2 (Top) Meld Area -->
     <com.google.android.flexbox.FlexboxLayout
         android:id="@+id/layoutAi2Melds"
         android:layout_width="wrap_content"
@@ -31,43 +31,42 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- AI 1 (Right) Melds -->
+    <!-- AI 1 (Right) Meld Area -->
     <com.google.android.flexbox.FlexboxLayout
         android:id="@+id/layoutAi1Melds"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="4dp"
+        android:layout_marginEnd="16dp"
         app:flexDirection="column"
-        app:layout_constraintBottom_toBottomOf="@+id/scrollDiscards"
+        app:layout_constraintBottom_toTopOf="@+id/layoutExposed"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/scrollDiscards" />
+        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Melds" />
 
-    <!-- AI 3 (Left) Melds -->
+    <!-- AI 3 (Left) Meld Area -->
     <com.google.android.flexbox.FlexboxLayout
         android:id="@+id/layoutAi3Melds"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
+        android:layout_marginStart="16dp"
         app:flexDirection="column"
-        app:layout_constraintBottom_toBottomOf="@+id/scrollDiscards"
+        app:layout_constraintBottom_toTopOf="@+id/layoutExposed"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/scrollDiscards" />
+        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Melds" />
 
     <!-- Discard Area (The River) - Center -->
     <ScrollView
         android:id="@+id/scrollDiscards"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
         android:background="#1A000000"
         android:padding="2dp"
-        app:layout_constraintBottom_toTopOf="@+id/layoutExposed"
-        app:layout_constraintEnd_toStartOf="@+id/layoutAi1Melds"
-        app:layout_constraintStart_toEndOf="@+id/layoutAi3Melds"
-        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Melds">
+        app:layout_constraintBottom_toTopOf="@+id/layoutActions"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Melds"
+        app:layout_constraintWidth_percent="0.5">
 
         <com.google.android.flexbox.FlexboxLayout
             android:id="@+id/flexDiscards"
@@ -79,6 +78,24 @@
             app:justifyContent="flex_start" />
     </ScrollView>
 
+    <!-- Centered Toast Emulator -->
+    <TextView
+        android:id="@+id/tvCenteredToast"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/toast_bg"
+        android:paddingHorizontal="24dp"
+        android:paddingVertical="12dp"
+        android:text="Toast Message"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        android:visibility="gone"
+        android:elevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <TextView
         android:id="@+id/tvHandLabel"
         android:layout_width="wrap_content"
@@ -88,17 +105,17 @@
         android:text="我的手牌"
         android:textColor="@color/white"
         android:textSize="14sp"
-        app:layout_constraintBottom_toTopOf="@+id/scrollHand"
+        app:layout_constraintBottom_toTopOf="@+id/layoutBottomArea"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- Action Buttons (Hidden by default) -->
+    <!-- Action Buttons -->
     <LinearLayout
         android:id="@+id/layoutActions"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
         android:orientation="horizontal"
-        app:layout_constraintBottom_toTopOf="@+id/scrollHand"
+        app:layout_constraintBottom_toTopOf="@+id/layoutBottomArea"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
@@ -140,37 +157,50 @@
             android:backgroundTint="#808080" />
     </LinearLayout>
     
-    <!-- Exposed Melds Area -->
-    <com.google.android.flexbox.FlexboxLayout
-        android:id="@+id/layoutExposed"
+    <!-- Bottom Container: Hand + Melds -->
+    <LinearLayout
+        android:id="@+id/layoutBottomArea"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        app:flexWrap="wrap"
-        app:justifyContent="flex_start"
-        app:layout_constraintBottom_toTopOf="@+id/tvHandLabel"
-        app:layout_constraintStart_toStartOf="parent"
-        android:paddingStart="16dp" />
-
-    <!-- Player Hand - Bottom -->
-    <HorizontalScrollView
-        android:id="@+id/scrollHand"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
+        android:orientation="horizontal"
+        android:padding="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-        <LinearLayout
-            android:id="@+id/layoutHand"
-            android:layout_width="wrap_content"
+        <!-- Player Hand -->
+        <HorizontalScrollView
+            android:id="@+id/scrollHand"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:gravity="center_vertical" />
-            
-    </HorizontalScrollView>
+            android:layout_weight="3">
+
+            <LinearLayout
+                android:id="@+id/layoutHand"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp" />
+        </HorizontalScrollView>
+
+        <!-- Divider/Separation -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="8dp"
+            android:background="#33FFFFFF" />
+
+        <!-- Exposed Melds Area (Human) -->
+        <com.google.android.flexbox.FlexboxLayout
+            android:id="@+id/layoutExposed"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            app:flexWrap="wrap"
+            app:justifyContent="flex_start" />
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

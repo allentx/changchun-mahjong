@@ -15,6 +15,12 @@ import com.allentx.changchunmahjong.logic.RuleValidatorHelper;
 import com.allentx.changchunmahjong.model.Tile;
 import java.util.List;
 import com.allentx.changchunmahjong.R;
+import com.google.android.flexbox.FlexboxLayout;
+import com.google.android.flexbox.FlexWrap;
+import android.view.ViewGroup;
+import java.util.ArrayList;
+import com.allentx.changchunmahjong.model.Player;
+import com.allentx.changchunmahjong.logic.SmartAiStrategy;
 
 public class GameActivity extends AppCompatActivity {
 
@@ -34,6 +40,16 @@ public class GameActivity extends AppCompatActivity {
         gameManager.startGame();
 
         hideActions();
+
+        // Check if Banker (Human) has Hu at start
+        List<Tile> hand = gameManager.getTable().getPlayer(0).getHand();
+        if (!hand.isEmpty()) {
+            lastDrawnTile = hand.get(hand.size() - 1);
+        }
+        if (RuleValidatorHelper.isHu(hand, gameManager.getTable().getPlayer(0).getMelds())) {
+            showActions(false, false, false, true);
+        }
+
         refreshUI();
 
         binding.btnHu.setOnClickListener(v -> executeHu());
@@ -72,9 +88,9 @@ public class GameActivity extends AppCompatActivity {
                 addTileToLayout(tile, false);
             }
 
-            // Add Spacer
+            // Add Spacer: Reduced from 24 to 12
             View spacer = new View(this);
-            spacer.setLayoutParams(new LinearLayout.LayoutParams(24, 1));
+            spacer.setLayoutParams(new LinearLayout.LayoutParams(12, 1));
             binding.layoutHand.addView(spacer);
 
             // Add last drawn
@@ -100,9 +116,9 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void addTileToLayout(Tile tile, boolean highlight) {
-        View tileView = createTileView(tile, highlight);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(160, 220);
-        params.setMargins(6, 0, 6, 0);
+        View tileView = createTileView(tile, highlight, 0);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(96, 132);
+        params.setMargins(1, 0, 1, 0); // Reduced from 4 to 1
         tileView.setLayoutParams(params);
         tileView.setOnClickListener(v -> onTileClicked(tile, tileView));
         binding.layoutHand.addView(tileView);
@@ -120,19 +136,17 @@ public class GameActivity extends AppCompatActivity {
         List<com.allentx.changchunmahjong.model.Meld> melds = gameManager.getTable().getPlayer(playerIndex).getMelds();
         for (com.allentx.changchunmahjong.model.Meld meld : melds) {
             LinearLayout meldGroup = new LinearLayout(this);
-            // AI 1 and 3 are vertical
-            meldGroup.setOrientation(
-                    (playerIndex == 1 || playerIndex == 3) ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+            meldGroup.setOrientation(LinearLayout.HORIZONTAL);
             meldGroup.setPadding(4, 4, 4, 4);
 
             List<Tile> tiles = new java.util.ArrayList<>(meld.getTiles());
-            java.util.Collections.sort(tiles); // Standardize display order (e.g. 1-2-3)
+            java.util.Collections.sort(tiles);
 
             for (Tile t : tiles) {
-                View tileView = createTileView(t, false);
-                // Human: 120x160, AI & Discards: 80x110
-                int size = (playerIndex == 0) ? 120 : 80;
-                int height = (playerIndex == 0) ? 160 : 110;
+                View tileView = createTileView(t, false, 0);
+                // Human: 72x96 (was 120x160), AI & Discards: 80x110
+                int size = (playerIndex == 0) ? 72 : 80;
+                int height = (playerIndex == 0) ? 96 : 110;
                 LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, height);
                 params.setMargins(2, 2, 2, 2);
                 tileView.setLayoutParams(params);
@@ -144,14 +158,35 @@ public class GameActivity extends AppCompatActivity {
 
     private void refreshDiscards() {
         binding.flexDiscards.removeAllViews();
-        List<Tile> discards = new java.util.ArrayList<>(gameManager.getTable().getDiscards());
-        java.util.Collections.reverse(discards); // Newest first (at the top)
+        List<Tile> allDiscards = gameManager.getTable().getDiscards();
 
-        for (Tile t : discards) {
-            View discardView = createTileView(t, false);
+        // Group by type and track counts
+        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+        for (Tile t : allDiscards) {
+            String key = t.getSuit().name() + "_" + t.getRank();
+            counts.put(key, counts.getOrDefault(key, 0) + 1);
+        }
+
+        // Create ordered list of unique tiles (newest last appearance first)
+        java.util.List<Tile> uniqueTilesOrdered = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int i = allDiscards.size() - 1; i >= 0; i--) {
+            Tile t = allDiscards.get(i);
+            String key = t.getSuit().name() + "_" + t.getRank();
+            if (!seen.contains(key)) {
+                uniqueTilesOrdered.add(t);
+                seen.add(key);
+            }
+        }
+
+        for (Tile t : uniqueTilesOrdered) {
+            String key = t.getSuit().name() + "_" + t.getRank();
+            int count = counts.get(key);
+
+            View discardView = createTileView(t, false, count);
             com.google.android.flexbox.FlexboxLayout.LayoutParams params = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
                     80, 110);
-            params.setMargins(2, 2, 2, 2);
+            params.setMargins(4, 4, 4, 4);
             discardView.setLayoutParams(params);
             binding.flexDiscards.addView(discardView);
         }
@@ -160,8 +195,21 @@ public class GameActivity extends AppCompatActivity {
         binding.scrollDiscards.post(() -> binding.scrollDiscards.fullScroll(View.FOCUS_UP));
     }
 
+    private void showCenteredToast(String message) {
+        binding.tvCenteredToast.setText(message);
+        binding.tvCenteredToast.setVisibility(View.VISIBLE);
+        binding.tvCenteredToast.setAlpha(0f);
+        binding.tvCenteredToast.animate().alpha(1f).setDuration(300).withEndAction(() -> {
+            binding.tvCenteredToast.postDelayed(() -> {
+                binding.tvCenteredToast.animate().alpha(0f).setDuration(300).withEndAction(() -> {
+                    binding.tvCenteredToast.setVisibility(View.GONE);
+                }).start();
+            }, 1000);
+        }).start();
+    }
+
     // Composite View Creator
-    private View createTileView(Tile t, boolean highlight) {
+    private View createTileView(Tile t, boolean highlight, int count) {
         android.widget.FrameLayout container = new android.widget.FrameLayout(this);
         container.setBackgroundResource(R.drawable.tile_bg);
 
@@ -182,6 +230,22 @@ public class GameActivity extends AppCompatActivity {
             iv.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
         }
         container.addView(iv, new android.widget.FrameLayout.LayoutParams(-1, -1));
+
+        // Count Badge
+        if (count > 1) {
+            TextView tvCount = new TextView(this);
+            tvCount.setText("x" + count);
+            tvCount.setTextColor(Color.RED);
+            tvCount.setShadowLayer(4, 1, 1, Color.WHITE);
+            tvCount.setTextSize(14f); // Changed from 14sp to 14f for float literal
+            tvCount.setTypeface(null, android.graphics.Typeface.BOLD);
+            android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT);
+            lp.gravity = Gravity.BOTTOM | Gravity.END;
+            lp.setMargins(0, 0, 4, 4);
+            container.addView(tvCount, lp);
+        }
 
         return container;
     }
@@ -208,7 +272,7 @@ public class GameActivity extends AppCompatActivity {
 
     private void onTileClicked(Tile tile, View view) {
         if (gameManager.getCurrentPlayerIndex() != 0) {
-            Toast.makeText(this, R.string.not_your_turn, Toast.LENGTH_SHORT).show();
+            showCenteredToast(getString(R.string.not_your_turn));
             return;
         }
 
@@ -219,11 +283,12 @@ public class GameActivity extends AppCompatActivity {
             selectedView = null;
             lastDrawnTile = null; // Clear highlight after discard
 
-            gameManager.advanceTurn();
-            refreshUI();
-
-            // Start AI sequence
-            new android.os.Handler().postDelayed(() -> simulateAiTurn(1), 1000);
+            // Start interruption check sequence instead of direct turn advancement
+            if (!checkAllInterruptions(tile, 0, false)) {
+                gameManager.advanceTurn();
+                refreshUI();
+                new android.os.Handler().postDelayed(() -> simulateAiTurn(gameManager.getCurrentPlayerIndex()), 1000);
+            }
         } else {
             // Select
             if (selectedView != null)
@@ -235,8 +300,12 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void simulateAiTurn(final int playerIndex) {
+        if (gameManager.getCurrentPlayerIndex() != playerIndex) {
+            // Turn was stolen or shifted (e.g. by a human Peng/Chi/Gang)
+            return;
+        }
         if (gameManager.getTable().getWall().isEmpty()) {
-            showGameOverDialog("流局", "牌墙已空，本局结束。");
+            showGameOverDialog("流局", "牌墙已空，本局结束。", null, null);
             return;
         }
 
@@ -244,67 +313,49 @@ public class GameActivity extends AppCompatActivity {
 
         Tile drawn = gameManager.drawTile();
         if (drawn != null) {
-            if (RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(playerIndex).getHand())) {
-                showGameOverDialog("胡了！", names[playerIndex] + " 自摸胡了！");
+            if (RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(playerIndex).getHand(),
+                    gameManager.getTable().getPlayer(playerIndex).getMelds())) {
+                showGameOverDialog("胡了！", names[playerIndex] + " 自摸胡了！", gameManager.getTable().getPlayer(playerIndex),
+                        drawn);
                 return;
             }
 
-            gameManager.discardTile(playerIndex, drawn);
-            String msg = String.format(getString(R.string.ai_discard), names[playerIndex], drawn.getChineseName());
-            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+            // 1. Collect all "visible" tiles for AI to consider
+            List<Tile> allDiscards = gameManager.getTable().getDiscards();
+            List<Tile> allMelds = new ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                for (com.allentx.changchunmahjong.model.Meld m : gameManager.getTable().getPlayer(i).getMelds()) {
+                    allMelds.addAll(m.getTiles());
+                }
+            }
+
+            // 2. Use Smart Strategy to pick best discard
+            Player ai = gameManager.getTable().getPlayer(playerIndex);
+            Tile recommended = SmartAiStrategy.recommendDiscard(
+                    ai.getHand(),
+                    allDiscards,
+                    ai.getMelds(),
+                    allMelds);
+
+            final Tile toDiscard = (recommended != null) ? recommended : drawn;
+
+            gameManager.discardTile(playerIndex, toDiscard);
+            String msg = String.format(getString(R.string.ai_discard), names[playerIndex], toDiscard.getChineseName());
+            showCenteredToast(msg);
             refreshUI();
 
             new android.os.Handler().postDelayed(() -> {
-                // Check if human player 0 can interrupt
-                if (checkPlayerInterruption(drawn, playerIndex)) {
+                if (checkAllInterruptions(toDiscard, playerIndex, false)) {
                     return;
-                }
-
-                // AI Hu Check: Can any other AI win from this discard?
-                for (int i = 1; i <= 3; i++) {
-                    if (i == playerIndex)
-                        continue;
-                    List<Tile> aiHand = new java.util.ArrayList<>(gameManager.getTable().getPlayer(i).getHand());
-                    aiHand.add(drawn);
-                    if (RuleValidatorHelper.isHu(aiHand)) {
-                        showGameOverDialog("胡了！",
-                                names[i] + " 胡了 " + names[playerIndex] + " 的一张 " + drawn.getChineseName() + "！");
-                        return;
-                    }
-                }
-
-                // Check if other AI can Peng/Gang
-                for (int i = 1; i <= 3; i++) {
-                    if (i == playerIndex)
-                        continue;
-                    List<Tile> aiHand = gameManager.getTable().getPlayer(i).getHand();
-                    if (RuleValidatorHelper.canMingGang(aiHand, drawn)) {
-                        performAiMeld(i, drawn, playerIndex, com.allentx.changchunmahjong.model.Meld.Type.MING_GANG);
-                        return;
-                    }
-                    if (RuleValidatorHelper.canPeng(aiHand, drawn)) {
-                        performAiMeld(i, drawn, playerIndex, com.allentx.changchunmahjong.model.Meld.Type.PENG);
-                        return;
-                    }
-                }
-
-                // AI Chi Check
-                int nextIndex = (playerIndex + 1) % 4;
-                if (nextIndex != 0) { // If next is AI
-                    List<Tile> nextHand = gameManager.getTable().getPlayer(nextIndex).getHand();
-                    if (RuleValidatorHelper.canChi(nextHand, drawn)) {
-                        performAiMeld(nextIndex, drawn, playerIndex, com.allentx.changchunmahjong.model.Meld.Type.CHI);
-                        return;
-                    }
                 }
 
                 // No interruption, continue loop
                 gameManager.advanceTurn();
                 refreshUI();
 
-                if (gameManager.getCurrentPlayerIndex() != 0) {
-                    new android.os.Handler().postDelayed(() -> simulateAiTurn(gameManager.getCurrentPlayerIndex()),
-                            1000);
+                int nextOwner = gameManager.getCurrentPlayerIndex();
+                if (nextOwner != 0) {
+                    new android.os.Handler().postDelayed(() -> simulateAiTurn(nextOwner), 1000);
                 } else {
                     drawForPlayer();
                 }
@@ -355,7 +406,7 @@ public class GameActivity extends AppCompatActivity {
         else if (type == com.allentx.changchunmahjong.model.Meld.Type.CHI)
             actionName = "吃";
 
-        Toast.makeText(this, names[aiIndex] + " " + actionName + "！", Toast.LENGTH_SHORT).show();
+        showCenteredToast(names[aiIndex] + " " + actionName + "！");
 
         gameManager.setCurrentPlayerIndex(aiIndex);
 
@@ -368,19 +419,33 @@ public class GameActivity extends AppCompatActivity {
 
         // AI must discard after meld
         new android.os.Handler().postDelayed(() -> {
-            List<Tile> hand = gameManager.getTable().getPlayer(aiIndex).getHand();
+            Player p = gameManager.getTable().getPlayer(aiIndex);
+            List<Tile> hand = p.getHand();
             if (!hand.isEmpty()) {
-                Tile toDiscard = hand.get(0);
+                // 1. Collect all "visible" tiles
+                List<Tile> allDiscards = gameManager.getTable().getDiscards();
+                List<Tile> allMeldsTiles = new ArrayList<>();
+                for (int i = 0; i < 4; i++) {
+                    for (com.allentx.changchunmahjong.model.Meld m : gameManager.getTable().getPlayer(i).getMelds()) {
+                        allMeldsTiles.addAll(m.getTiles());
+                    }
+                }
+
+                // 2. Use Smart Strategy
+                Tile recommended = SmartAiStrategy.recommendDiscard(hand, allDiscards, p.getMelds(), allMeldsTiles);
+                final Tile toDiscard = (recommended != null) ? recommended : hand.get(0);
+
                 gameManager.discardTile(aiIndex, toDiscard);
-                Toast.makeText(this, names[aiIndex] + " 打出 " + toDiscard.getChineseName(), Toast.LENGTH_SHORT).show();
+                showCenteredToast(names[aiIndex] + " 打出 " + toDiscard.getChineseName());
 
                 refreshUI();
                 new android.os.Handler().postDelayed(() -> {
-                    if (!checkPlayerInterruption(toDiscard, aiIndex)) {
+                    if (!checkAllInterruptions(toDiscard, aiIndex, false)) {
                         gameManager.advanceTurn();
                         refreshUI();
-                        if (gameManager.getCurrentPlayerIndex() != 0) {
-                            simulateAiTurn(gameManager.getCurrentPlayerIndex());
+                        int next = gameManager.getCurrentPlayerIndex();
+                        if (next != 0) {
+                            simulateAiTurn(next);
                         } else {
                             drawForPlayer();
                         }
@@ -390,26 +455,79 @@ public class GameActivity extends AppCompatActivity {
         }, 1000);
     }
 
-    private boolean checkPlayerInterruption(Tile discarded, int fromPlayer) {
+    private boolean checkAllInterruptions(Tile discarded, int fromPlayer, boolean skipHuman) {
         lastDiscardFromPlayer = fromPlayer;
         interruptedTile = discarded;
-        List<Tile> hand = new java.util.ArrayList<>(gameManager.getTable().getPlayer(0).getHand());
+        String[] names = getResources().getStringArray(R.array.player_names);
 
-        // Check Hu first (Win from discard)
-        hand.add(discarded);
-        boolean canHu = RuleValidatorHelper.isHu(hand);
-
-        hand.remove(discarded);
-        boolean canPeng = RuleValidatorHelper.canPeng(hand, discarded);
-        boolean canGang = RuleValidatorHelper.canMingGang(hand, discarded);
-        // Chi only possible if from the player to the left (player 3 in our clockwise
-        // sequence 0->1->2->3)
-        boolean canChi = (fromPlayer == 3) && RuleValidatorHelper.canChi(hand, discarded);
-
-        if (canChi || canPeng || canGang || canHu) {
-            showActions(canChi, canPeng, canGang, canHu);
-            return true;
+        // 1. Priority: AI Hu (Win from discard)
+        for (int i = 1; i <= 3; i++) {
+            if (i == fromPlayer)
+                continue;
+            Player ai = gameManager.getTable().getPlayer(i);
+            List<Tile> aiHand = new java.util.ArrayList<>(ai.getHand());
+            aiHand.add(discarded);
+            if (RuleValidatorHelper.isHu(aiHand, ai.getMelds())) {
+                showGameOverDialog("胡了！",
+                        names[i] + " 胡了 " + names[fromPlayer] + " 的一张 " + discarded.getChineseName() + "！",
+                        ai, discarded);
+                return true;
+            }
         }
+
+        // 2. Priority: Human Interruption (Hu, Peng, Gang, Chi)
+        if (fromPlayer != 0 && !skipHuman) {
+            Player human = gameManager.getTable().getPlayer(0);
+            List<Tile> hand = new java.util.ArrayList<>(human.getHand());
+            hand.add(discarded);
+            boolean canHu = RuleValidatorHelper.isHu(hand, human.getMelds());
+            hand.remove(discarded);
+
+            // 3-Meld Limit Rule
+            boolean hasMeldCapacity = human.getMelds().size() < 3;
+            boolean canPeng = hasMeldCapacity && RuleValidatorHelper.canPeng(hand, discarded);
+            boolean canGang = hasMeldCapacity && RuleValidatorHelper.canMingGang(hand, discarded);
+            boolean canChi = hasMeldCapacity && (fromPlayer == 3) && RuleValidatorHelper.canChi(hand, discarded);
+
+            if (canChi || canPeng || canGang || canHu) {
+                showActions(canChi, canPeng, canGang, canHu);
+                return true;
+            }
+        }
+
+        // 3. Priority: AI Peng/Gang
+        for (int i = 1; i <= 3; i++) {
+            if (i == fromPlayer)
+                continue;
+            Player ai = gameManager.getTable().getPlayer(i);
+            boolean hasMeldCapacity = ai.getMelds().size() < 3;
+            if (!hasMeldCapacity)
+                continue;
+
+            List<Tile> aiHand = ai.getHand();
+            if (RuleValidatorHelper.canMingGang(aiHand, discarded)) {
+                performAiMeld(i, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.MING_GANG);
+                return true;
+            }
+            if (RuleValidatorHelper.canPeng(aiHand, discarded)) {
+                performAiMeld(i, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.PENG);
+                return true;
+            }
+        }
+
+        // 4. Priority: AI Chi
+        int nextIndex = (fromPlayer + 1) % 4;
+        if (nextIndex != 0 && nextIndex != fromPlayer) {
+            Player ai = gameManager.getTable().getPlayer(nextIndex);
+            if (ai.getMelds().size() < 3) {
+                List<Tile> nextHand = ai.getHand();
+                if (RuleValidatorHelper.canChi(nextHand, discarded)) {
+                    performAiMeld(nextIndex, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.CHI);
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 
@@ -418,10 +536,11 @@ public class GameActivity extends AppCompatActivity {
         lastDrawnTile = playerDrawn;
         if (playerDrawn != null) {
             String msg = String.format(getString(R.string.you_drew_tile), playerDrawn.getChineseName());
-            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+            showCenteredToast(msg);
 
             // Check self-draw Hu
-            if (RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(0).getHand())) {
+            if (RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(0).getHand(),
+                    gameManager.getTable().getPlayer(0).getMelds())) {
                 showActions(false, false, false, true);
             }
         }
@@ -458,7 +577,7 @@ public class GameActivity extends AppCompatActivity {
         gameManager.setCurrentPlayerIndex(0);
         hideActions();
         refreshUI();
-        Toast.makeText(this, "吃！请打出一张牌。", Toast.LENGTH_SHORT).show();
+        showCenteredToast("吃！请打出一张牌。");
     }
 
     private void executePeng() {
@@ -482,7 +601,7 @@ public class GameActivity extends AppCompatActivity {
         gameManager.setCurrentPlayerIndex(0);
         hideActions();
         refreshUI();
-        Toast.makeText(this, "碰！请打出一张牌。", Toast.LENGTH_SHORT).show();
+        showCenteredToast("碰！请打出一张牌。");
     }
 
     private void executeGang() {
@@ -505,7 +624,7 @@ public class GameActivity extends AppCompatActivity {
         gameManager.setCurrentPlayerIndex(0);
         hideActions();
         refreshUI();
-        Toast.makeText(this, "杠！请补牌。", Toast.LENGTH_SHORT).show();
+        showCenteredToast("杠！请补牌。");
 
         // DRAW REPLACEMENT TILE
         new android.os.Handler().postDelayed(this::drawForPlayer, 1000);
@@ -513,12 +632,27 @@ public class GameActivity extends AppCompatActivity {
 
     private void executePass() {
         hideActions();
+
+        if (gameManager.getCurrentPlayerIndex() == 0) {
+            // Self-draw case: Just hide actions and wait for human to discard.
+            refreshUI();
+            return;
+        }
+
+        // Interruption case: Move to next priority (AI)
+        if (interruptedTile != null) {
+            // Check if any AI wants it after human passed
+            if (checkAllInterruptions(interruptedTile, lastDiscardFromPlayer, true)) {
+                return;
+            }
+        }
+
         // Resume AI cycle
         gameManager.advanceTurn();
         refreshUI();
 
-        if (lastDiscardFromPlayer < 3) {
-            new android.os.Handler().postDelayed(() -> simulateAiTurn(lastDiscardFromPlayer + 1), 1000);
+        if (gameManager.getCurrentPlayerIndex() != 0) {
+            new android.os.Handler().postDelayed(() -> simulateAiTurn(gameManager.getCurrentPlayerIndex()), 1000);
         } else {
             drawForPlayer();
         }
@@ -543,27 +677,84 @@ public class GameActivity extends AppCompatActivity {
 
     private void executeHu() {
         hideActions();
-        showGameOverDialog("🎉 你赢了！ 🎉", "恭喜你胡牌了！");
+        showGameOverDialog("🎉 你赢了！ 🎉", "恭喜你胡牌了！", gameManager.getTable().getPlayer(0),
+                interruptedTile != null ? interruptedTile : lastDrawnTile);
     }
 
-    private void showGameOverDialog(String title, String message) {
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(title)
-                .setMessage(message)
-                .setCancelable(false)
-                .setPositiveButton("再来一局", (dialog, which) -> {
-                    gameManager = new GameManager();
-                    gameManager.startGame();
-                    lastDrawnTile = null;
-                    hideActions();
-                    refreshUI();
-                })
+    private void showGameOverDialog(String title, String message, com.allentx.changchunmahjong.model.Player winner,
+            Tile winningTile) {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle(title).setMessage(message).setCancelable(false);
+
+        if (winner != null) {
+            android.widget.ScrollView scrollView = new android.widget.ScrollView(this);
+            FlexboxLayout flexboxLayout = new FlexboxLayout(this);
+            flexboxLayout.setFlexWrap(FlexWrap.WRAP);
+            flexboxLayout.setPadding(32, 16, 32, 16);
+
+            // 1. Add Melds
+            for (com.allentx.changchunmahjong.model.Meld meld : winner.getMelds()) {
+                LinearLayout meldGroup = new LinearLayout(this);
+                meldGroup.setOrientation(LinearLayout.HORIZONTAL);
+                for (Tile t : meld.getTiles()) {
+                    View tileView = createTileView(t, false, 0);
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(80, 110);
+                    lp.setMargins(2, 2, 2, 2);
+                    tileView.setLayoutParams(lp);
+                    meldGroup.addView(tileView);
+                }
+                flexboxLayout.addView(meldGroup);
+                // Spacer between melds
+                View gap = new View(this);
+                flexboxLayout.addView(gap, new com.google.android.flexbox.FlexboxLayout.LayoutParams(12, 1));
+            }
+
+            // 2. Add Hand Tiles
+            List<Tile> handToDisplay = new java.util.ArrayList<>(winner.getHand());
+            java.util.Collections.sort(handToDisplay);
+
+            for (Tile t : handToDisplay) {
+                View tileView = createTileView(t, false, 0);
+                com.google.android.flexbox.FlexboxLayout.LayoutParams lp = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
+                        80, 110);
+                lp.setMargins(2, 2, 2, 2);
+                tileView.setLayoutParams(lp);
+                flexboxLayout.addView(tileView);
+            }
+
+            // 3. Add the Winning Tile (if win was from discard, it's not in
+            // winner.getHand())
+            if (winningTile != null) {
+                // Large spacer
+                View gap = new View(this);
+                flexboxLayout.addView(gap, new com.google.android.flexbox.FlexboxLayout.LayoutParams(32, 1));
+
+                View tileView = createTileView(winningTile, true, 0); // Highlight winning tile
+                com.google.android.flexbox.FlexboxLayout.LayoutParams lp = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
+                        80, 110);
+                lp.setMargins(2, 2, 2, 2);
+                tileView.setLayoutParams(lp);
+                flexboxLayout.addView(tileView);
+            }
+
+            scrollView.addView(flexboxLayout);
+            builder.setView(scrollView);
+        }
+
+        builder.setPositiveButton("再来一局", (dialog, which) -> {
+            gameManager = new GameManager();
+            gameManager.startGame();
+            lastDrawnTile = null;
+            hideActions();
+            refreshUI();
+        })
                 .setNegativeButton("退出", (dialog, which) -> finish())
                 .show();
     }
 
     private void checkHu() {
-        boolean hu = RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(0).getHand());
-        Toast.makeText(this, hu ? "胡了！你赢了！" : getString(R.string.not_hu_yet), Toast.LENGTH_SHORT).show();
+        Player human = gameManager.getTable().getPlayer(0);
+        boolean hu = RuleValidatorHelper.isHu(human.getHand(), human.getMelds());
+        showCenteredToast(hu ? "胡了！你赢了！" : getString(R.string.not_hu_yet));
     }
 }

@@ -13,30 +13,84 @@ public class RuleValidatorHelper {
      * 
      * @param handTiles  Tiles in hand (excluding fixed melds)
      * @param fixedMelds Exposed melds (Chi/Peng/Gang)
-     * @param newTile    The tile just drawn or irrelevant if checking strict hand.
-     *                   If checking validity after draw, `handTiles` should include
-     *                   it, or pass it here.
-     *                   Let's assume handTiles INCLUDES the new tile for simplicity
-     *                   in recursion.
+     *                   Strict Changchun Mahjong Hu validation.
+     *                   Total tiles must be 14 (melds * 3 + hand).
      */
-    public static boolean isHu(List<Tile> handTiles) {
-        // Sort first
+    public static boolean isHu(List<Tile> handTiles, List<Meld> melds) {
+        // 1. Basic Size Check
+        int totalTiles = (melds.size() * 3) + handTiles.size();
+        // Exception: Gangs count as 3 tiles for set calculations but have 4 physical
+        // tiles.
+        // Our Meld model tiles list will have 4 tiles for Gang, but it's logically 1
+        // set.
+        // Let's count Logical Sets instead.
+        int logicalTotal = melds.size() * 3 + handTiles.size();
+        // If there's a Gang in melds, it has 4 tiles but counts as 1 set (3 tiles).
+        // Actual physical tiles in melds:
+        int physicalMeldTiles = 0;
+        for (Meld m : melds)
+            physicalMeldTiles += m.getTiles().size();
+        int actualTotal = physicalMeldTiles + handTiles.size();
+
+        // In Mahjong, you win with 14 tiles (or 14 + number of Gangs).
+        // Let's simplify: physicalHand + (melds * 3) should be 14.
+        if (logicalTotal != 14)
+            return false;
+
+        // 2. Suit/Special Rule Checks
+        List<Tile> allTiles = new ArrayList<>(handTiles);
+        for (Meld m : melds)
+            allTiles.addAll(m.getTiles());
+
+        if (!hasThreeSuits(allTiles))
+            return false;
+        if (!hasYaoJiu(allTiles))
+            return false;
+
+        // 3. Hu Pattern Checks
         List<Tile> sortedHand = new ArrayList<>(handTiles);
         Collections.sort(sortedHand);
 
-        // 1. Check 7 Pairs (Qi Dui)
-        if (isQiDui(sortedHand))
+        // A. Check 7 Pairs (Only if 0 melds)
+        if (melds.isEmpty() && isQiDui(sortedHand))
             return true;
 
-        // 2. Check Standard 4 Melds + 1 Pair
-        // We know we need 14 tiles total (including fixed melds).
-        // Standard check acts only on the "Standing" tiles.
-        // If we have M fixed melds, we need (4 - M) sets + 1 pair in hand.
-        // Remainder tiles in hand should be: 14 - 3*M.
-        // e.g. 0 fixed -> 14 tiles -> 4 sets + 1 pair
-        // 1 fixed -> 11 tiles -> 3 sets + 1 pair
+        // B. Check Standard: (4 - melds.size()) sets + 1 pair in hand
+        int requiredSets = 4 - melds.size();
+        boolean hasExposedPengGang = false;
+        for (Meld m : melds) {
+            if (m.getType() == Meld.Type.PENG || m.getType() == Meld.Type.MING_GANG
+                    || m.getType() == Meld.Type.AN_GANG) {
+                hasExposedPengGang = true;
+                break;
+            }
+        }
+        return checkStandardHu(sortedHand, requiredSets, hasExposedPengGang);
+    }
 
-        return isStandardHu(sortedHand);
+    private static boolean hasThreeSuits(List<Tile> tiles) {
+        boolean hasWan = false;
+        boolean hasTiao = false;
+        boolean hasTong = false;
+        for (Tile t : tiles) {
+            if (t.getSuit() == Tile.Suit.WAN)
+                hasWan = true;
+            if (t.getSuit() == Tile.Suit.TIAO)
+                hasTiao = true;
+            if (t.getSuit() == Tile.Suit.TONG)
+                hasTong = true;
+        }
+        return hasWan && hasTiao && hasTong;
+    }
+
+    private static boolean hasYaoJiu(List<Tile> tiles) {
+        for (Tile t : tiles) {
+            if (!t.isNumber())
+                return true; // Honors count as Yao Jiu
+            if (t.getRank() == 1 || t.getRank() == 9)
+                return true;
+        }
+        return false;
     }
 
     private static boolean isQiDui(List<Tile> hand) {
@@ -49,71 +103,72 @@ public class RuleValidatorHelper {
         return true;
     }
 
-    private static boolean isStandardHu(List<Tile> hand) {
-        // Basic requirement: Size % 3 == 2 (e.g., 2, 5, 8, 11, 14)
-        if (hand.size() % 3 != 2)
-            return false;
-
-        // Try every unique tile as the Pair
+    private static boolean checkStandardHu(List<Tile> hand, int requiredSets, boolean alreadyHasPengGang) {
+        // Try every unique tile as the pair
         List<Tile> uniqueTiles = new ArrayList<>();
         for (Tile t : hand) {
-            if (!uniqueTiles.contains(t))
+            boolean found = false;
+            for (Tile u : uniqueTiles) {
+                if (u.equals(t)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
                 uniqueTiles.add(t);
         }
 
         for (Tile pairTile : uniqueTiles) {
-            // Count occurrences
             int count = 0;
             for (Tile t : hand)
                 if (t.equals(pairTile))
                     count++;
+
             if (count >= 2) {
-                // Clone and remove pair
                 List<Tile> remaining = new ArrayList<>(hand);
                 remaining.remove(pairTile);
-                remaining.remove(pairTile); // Remove only 2
+                remaining.remove(pairTile);
 
-                if (canFormSets(remaining))
+                if (canFormExactlyNSets(remaining, requiredSets, alreadyHasPengGang)) {
                     return true;
+                }
             }
         }
         return false;
     }
 
-    // Recursive backtracking to check if tiles can form valid Sets (Groups of 3)
-    private static boolean canFormSets(List<Tile> tiles) {
+    private static boolean canFormExactlyNSets(List<Tile> tiles, int n, boolean foundPengGang) {
+        if (n == 0)
+            return tiles.isEmpty() && foundPengGang;
         if (tiles.isEmpty())
-            return true;
+            return n == 0 && foundPengGang;
 
         Tile first = tiles.get(0);
 
-        // 1. Try Koutsu (Triplet)
-        // Find 2 others equal to first
+        // 1. Try Triplet (counts as Peng/Gang)
         int count = 0;
         for (Tile t : tiles)
             if (t.equals(first))
                 count++;
-
         if (count >= 3) {
-            List<Tile> nextTiles = new ArrayList<>(tiles);
-            nextTiles.remove(first);
-            nextTiles.remove(first); // Remove by object, relies on equals
-            nextTiles.remove(first);
-            if (canFormSets(nextTiles))
+            List<Tile> next = new ArrayList<>(tiles);
+            next.remove(first);
+            next.remove(first);
+            next.remove(first);
+            if (canFormExactlyNSets(next, n - 1, true))
                 return true;
         }
 
-        // 2. Try Shuntsu (Sequence) - Only for numbered suits
+        // 2. Try Sequence
         if (first.isNumber()) {
             Tile t2 = findAlso(tiles, first.getSuit(), first.getRank() + 1);
             Tile t3 = findAlso(tiles, first.getSuit(), first.getRank() + 2);
-
             if (t2 != null && t3 != null) {
-                List<Tile> nextTiles = new ArrayList<>(tiles);
-                nextTiles.remove(first);
-                nextTiles.remove(t2);
-                nextTiles.remove(t3);
-                if (canFormSets(nextTiles))
+                List<Tile> next = new ArrayList<>(tiles);
+                next.remove(first);
+                next.remove(t2);
+                next.remove(t3);
+                if (canFormExactlyNSets(next, n - 1, foundPengGang))
                     return true;
             }
         }
