@@ -460,71 +460,81 @@ public class GameActivity extends AppCompatActivity {
         interruptedTile = discarded;
         String[] names = getResources().getStringArray(R.array.player_names);
 
-        // 1. Priority: AI Hu (Win from discard)
+        // --- Priority LEVEL 1: HU (Win) ---
         for (int i = 1; i <= 3; i++) {
-            if (i == fromPlayer)
-                continue;
-            Player ai = gameManager.getTable().getPlayer(i);
-            List<Tile> aiHand = new java.util.ArrayList<>(ai.getHand());
-            aiHand.add(discarded);
-            if (RuleValidatorHelper.isHu(aiHand, ai.getMelds())) {
-                showGameOverDialog("胡了！",
-                        names[i] + " 胡了 " + names[fromPlayer] + " 的一张 " + discarded.getChineseName() + "！",
-                        ai, discarded);
-                return true;
-            }
-        }
-
-        // 2. Priority: Human Interruption (Hu, Peng, Gang, Chi)
-        if (fromPlayer != 0 && !skipHuman) {
-            Player human = gameManager.getTable().getPlayer(0);
-            List<Tile> hand = new java.util.ArrayList<>(human.getHand());
-            hand.add(discarded);
-            boolean canHu = RuleValidatorHelper.isHu(hand, human.getMelds());
-            hand.remove(discarded);
-
-            // 3-Meld Limit Rule
-            boolean hasMeldCapacity = human.getMelds().size() < 3;
-            boolean canPeng = hasMeldCapacity && RuleValidatorHelper.canPeng(hand, discarded);
-            boolean canGang = hasMeldCapacity && RuleValidatorHelper.canMingGang(hand, discarded);
-            boolean canChi = hasMeldCapacity && (fromPlayer == 3) && RuleValidatorHelper.canChi(hand, discarded);
-
-            if (canChi || canPeng || canGang || canHu) {
-                showActions(canChi, canPeng, canGang, canHu);
-                return true;
-            }
-        }
-
-        // 3. Priority: AI Peng/Gang
-        for (int i = 1; i <= 3; i++) {
-            if (i == fromPlayer)
-                continue;
-            Player ai = gameManager.getTable().getPlayer(i);
-            boolean hasMeldCapacity = ai.getMelds().size() < 3;
-            if (!hasMeldCapacity)
-                continue;
-
-            List<Tile> aiHand = ai.getHand();
-            if (RuleValidatorHelper.canMingGang(aiHand, discarded)) {
-                performAiMeld(i, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.MING_GANG);
-                return true;
-            }
-            if (RuleValidatorHelper.canPeng(aiHand, discarded)) {
-                performAiMeld(i, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.PENG);
-                return true;
-            }
-        }
-
-        // 4. Priority: AI Chi
-        int nextIndex = (fromPlayer + 1) % 4;
-        if (nextIndex != 0 && nextIndex != fromPlayer) {
-            Player ai = gameManager.getTable().getPlayer(nextIndex);
-            if (ai.getMelds().size() < 3) {
-                List<Tile> nextHand = ai.getHand();
-                if (RuleValidatorHelper.canChi(nextHand, discarded)) {
-                    performAiMeld(nextIndex, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.CHI);
+            int t = (fromPlayer + i) % 4;
+            if (t == 0) {
+                if (skipHuman)
+                    continue;
+                Player human = gameManager.getTable().getPlayer(0);
+                List<Tile> hand = new java.util.ArrayList<>(human.getHand());
+                hand.add(discarded);
+                if (RuleValidatorHelper.isHu(hand, human.getMelds())) {
+                    boolean canChi = (fromPlayer == 3) && RuleValidatorHelper.canChi(human.getHand(), discarded);
+                    boolean canPeng = RuleValidatorHelper.canPeng(human.getHand(), discarded);
+                    boolean canGang = RuleValidatorHelper.canMingGang(human.getHand(), discarded);
+                    showActions(canChi, canPeng, canGang, true);
                     return true;
                 }
+            } else {
+                Player ai = gameManager.getTable().getPlayer(t);
+                List<Tile> aiHand = new java.util.ArrayList<>(ai.getHand());
+                aiHand.add(discarded);
+                if (RuleValidatorHelper.isHu(aiHand, ai.getMelds())) {
+                    showGameOverDialog("胡了！",
+                            names[t] + " 胡了 " + names[fromPlayer] + " 的一张 " + discarded.getChineseName() + "！",
+                            ai, discarded);
+                    return true;
+                }
+            }
+        }
+
+        // --- Priority LEVEL 2: PENG / GANG ---
+        for (int i = 1; i <= 3; i++) {
+            int t = (fromPlayer + i) % 4;
+            if (t == 0) {
+                if (skipHuman)
+                    continue;
+                Player human = gameManager.getTable().getPlayer(0);
+                if (human.getMelds().size() < 3) {
+                    boolean canPeng = RuleValidatorHelper.canPeng(human.getHand(), discarded);
+                    boolean canGang = RuleValidatorHelper.canMingGang(human.getHand(), discarded);
+                    if (canPeng || canGang) {
+                        boolean canChi = (fromPlayer == 3) && RuleValidatorHelper.canChi(human.getHand(), discarded);
+                        showActions(canChi, canPeng, canGang, false);
+                        return true;
+                    }
+                }
+            } else {
+                Player ai = gameManager.getTable().getPlayer(t);
+                if (ai.getMelds().size() < 3) {
+                    if (RuleValidatorHelper.canMingGang(ai.getHand(), discarded)) {
+                        performAiMeld(t, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.MING_GANG);
+                        return true;
+                    }
+                    if (RuleValidatorHelper.canPeng(ai.getHand(), discarded)) {
+                        performAiMeld(t, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.PENG);
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // --- Priority LEVEL 3: CHI ---
+        int nextIndex = (fromPlayer + 1) % 4;
+        if (nextIndex == 0) {
+            if (!skipHuman) {
+                Player human = gameManager.getTable().getPlayer(0);
+                if (human.getMelds().size() < 3 && RuleValidatorHelper.canChi(human.getHand(), discarded)) {
+                    showActions(true, false, false, false);
+                    return true;
+                }
+            }
+        } else {
+            Player ai = gameManager.getTable().getPlayer(nextIndex);
+            if (ai.getMelds().size() < 3 && RuleValidatorHelper.canChi(ai.getHand(), discarded)) {
+                performAiMeld(nextIndex, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.CHI);
+                return true;
             }
         }
 
@@ -532,6 +542,8 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void drawForPlayer() {
+        interruptedTile = null;
+        lastDiscardFromPlayer = -1;
         Tile playerDrawn = gameManager.drawTile();
         lastDrawnTile = playerDrawn;
         if (playerDrawn != null) {
@@ -632,6 +644,7 @@ public class GameActivity extends AppCompatActivity {
 
     private void executePass() {
         hideActions();
+        interruptedTile = null;
 
         if (gameManager.getCurrentPlayerIndex() == 0) {
             // Self-draw case: Just hide actions and wait for human to discard.
@@ -693,7 +706,14 @@ public class GameActivity extends AppCompatActivity {
             flexboxLayout.setPadding(32, 16, 32, 16);
 
             // 1. Add Melds
-            for (com.allentx.changchunmahjong.model.Meld meld : winner.getMelds()) {
+            List<com.allentx.changchunmahjong.model.Meld> sortedMelds = new java.util.ArrayList<>(winner.getMelds());
+            java.util.Collections.sort(sortedMelds, (m1, m2) -> {
+                if (m1.getFirstTile() == null || m2.getFirstTile() == null)
+                    return 0;
+                return m1.getFirstTile().compareTo(m2.getFirstTile());
+            });
+
+            for (com.allentx.changchunmahjong.model.Meld meld : sortedMelds) {
                 LinearLayout meldGroup = new LinearLayout(this);
                 meldGroup.setOrientation(LinearLayout.HORIZONTAL);
                 for (Tile t : meld.getTiles()) {
@@ -711,6 +731,16 @@ public class GameActivity extends AppCompatActivity {
 
             // 2. Add Hand Tiles
             List<Tile> handToDisplay = new java.util.ArrayList<>(winner.getHand());
+            if (winningTile != null) {
+                // If winning tile is in hand (self-draw), remove one instance to display it
+                // separately at the end
+                for (int i = 0; i < handToDisplay.size(); i++) {
+                    if (handToDisplay.get(i).equals(winningTile)) {
+                        handToDisplay.remove(i);
+                        break;
+                    }
+                }
+            }
             java.util.Collections.sort(handToDisplay);
 
             for (Tile t : handToDisplay) {

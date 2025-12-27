@@ -23,8 +23,8 @@
     
     <array name="player_names">
         <item>我</item>
-        <item>电脑1 (南)</item>
+        <item>电脑1 (北)</item>
         <item>电脑2 (西)</item>
-        <item>电脑3 (北)</item>
+        <item>电脑3 (南)</item>
     </array>
 </resources>

@@ -20,38 +20,89 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- AI 2 (Top) Meld Area -->
-    <com.google.android.flexbox.FlexboxLayout
-        android:id="@+id/layoutAi2Melds"
+    <!-- AI 2 (Top/West) Info & Meld Area -->
+    <LinearLayout
+        android:id="@+id/layoutAi2Area"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        app:flexDirection="row"
+        android:layout_marginTop="24dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
 
-    <!-- AI 1 (Right) Meld Area -->
-    <com.google.android.flexbox.FlexboxLayout
-        android:id="@+id/layoutAi1Melds"
+        <TextView
+            android:id="@+id/tvPlayer2Info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="电脑2 (西)"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:layout_marginBottom="4dp" />
+
+        <com.google.android.flexbox.FlexboxLayout
+            android:id="@+id/layoutAi2Melds"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:flexDirection="row" />
+    </LinearLayout>
+
+    <!-- AI 1 (Right/North) Info & Meld Area -->
+    <LinearLayout
+        android:id="@+id/layoutAi1Area"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="16dp"
-        app:flexDirection="column"
-        app:layout_constraintBottom_toTopOf="@+id/layoutExposed"
+        android:layout_marginEnd="8dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@+id/layoutActions"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Melds" />
+        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Area">
 
-    <!-- AI 3 (Left) Meld Area -->
-    <com.google.android.flexbox.FlexboxLayout
-        android:id="@+id/layoutAi3Melds"
+        <TextView
+            android:id="@+id/tvPlayer1Info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="电脑1 (北)"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:layout_marginBottom="4dp" />
+
+        <com.google.android.flexbox.FlexboxLayout
+            android:id="@+id/layoutAi1Melds"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:flexDirection="column" />
+    </LinearLayout>
+
+    <!-- AI 3 (Left/South) Info & Meld Area -->
+    <LinearLayout
+        android:id="@+id/layoutAi3Area"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        app:flexDirection="column"
-        app:layout_constraintBottom_toTopOf="@+id/layoutExposed"
+        android:layout_marginStart="8dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@+id/layoutActions"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Melds" />
+        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Area">
+
+        <TextView
+            android:id="@+id/tvPlayer3Info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="电脑3 (南)"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:layout_marginBottom="4dp" />
+
+        <com.google.android.flexbox.FlexboxLayout
+            android:id="@+id/layoutAi3Melds"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:flexDirection="column" />
+    </LinearLayout>
 
     <!-- Discard Area (The River) - Center -->
     <ScrollView
@@ -65,7 +116,7 @@
         app:layout_constraintBottom_toTopOf="@+id/layoutActions"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Melds"
+        app:layout_constraintTop_toBottomOf="@+id/layoutAi2Area"
         app:layout_constraintWidth_percent="0.5">
 
         <com.google.android.flexbox.FlexboxLayout
@@ -102,7 +153,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:layout_marginBottom="4dp"
-        android:text="我的手牌"
+        android:text="我的手牌 (东)"
         android:textColor="@color/white"
         android:textSize="14sp"
         app:layout_constraintBottom_toTopOf="@+id/layoutBottomArea"

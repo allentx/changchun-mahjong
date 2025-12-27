@@ -21,9 +21,8 @@ public class Meld {
         this.tiles = tiles;
         this.fromPlayer = fromPlayer;
         if (tiles != null && !tiles.isEmpty()) {
-            // Sort to ensure consistent firstTile logic if needed, but usually passed
-            // sorted
-            this.firstTile = tiles.get(0);
+            java.util.Collections.sort(this.tiles);
+            this.firstTile = this.tiles.get(0);
         } else {
             this.firstTile = null;
         }
