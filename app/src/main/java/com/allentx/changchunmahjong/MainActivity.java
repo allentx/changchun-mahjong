@@ -31,14 +31,36 @@ public class MainActivity extends AppCompatActivity {
             }).start();
         }
 
-        // Setup listeners
         binding.btnStartGame.setOnClickListener(v -> {
             android.content.Intent intent = new android.content.Intent(this, GameActivity.class);
             startActivity(intent);
         });
 
-        binding.btnSettings.setOnClickListener(v -> {
-            // TODO: Open Settings
+        binding.btnSettings.setOnClickListener(v -> showSettingsDialog());
+    }
+
+    private void showSettingsDialog() {
+        android.content.SharedPreferences prefs = getSharedPreferences("mahjong_prefs", MODE_PRIVATE);
+        boolean soundEnabled = prefs.getBoolean("sound_enabled", true);
+
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle(R.string.settings);
+
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(48, 32, 48, 32);
+
+        androidx.appcompat.widget.SwitchCompat switchSound = new androidx.appcompat.widget.SwitchCompat(this);
+        switchSound.setText("开启语音语音 (吃/碰/杠/胡)");
+        switchSound.setChecked(soundEnabled);
+
+        layout.addView(switchSound);
+        builder.setView(layout);
+
+        builder.setPositiveButton(android.R.string.ok, (dialog, which) -> {
+            prefs.edit().putBoolean("sound_enabled", switchSound.isChecked()).apply();
         });
+        builder.setNegativeButton(android.R.string.cancel, null);
+        builder.show();
     }
 }

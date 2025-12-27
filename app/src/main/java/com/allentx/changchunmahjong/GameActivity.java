@@ -57,6 +57,21 @@ public class GameActivity extends AppCompatActivity {
         binding.btnGang.setOnClickListener(v -> executeGang());
         binding.btnChi.setOnClickListener(v -> executeChi());
         binding.btnPass.setOnClickListener(v -> executePass());
+
+        soundManager = com.allentx.changchunmahjong.util.SoundManager.getInstance(this);
+    }
+
+    private com.allentx.changchunmahjong.util.SoundManager soundManager;
+
+    private boolean isSoundEnabled() {
+        android.content.SharedPreferences prefs = getSharedPreferences("mahjong_prefs", MODE_PRIVATE);
+        return prefs.getBoolean("sound_enabled", true);
+    }
+
+    private void announceVoice(String text) {
+        if (isSoundEnabled()) {
+            soundManager.announce(text);
+        }
     }
 
     private void hideActions() {
@@ -311,6 +326,7 @@ public class GameActivity extends AppCompatActivity {
         if (drawn != null) {
             if (RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(playerIndex).getHand(),
                     gameManager.getTable().getPlayer(playerIndex).getMelds())) {
+                announceVoice("胡");
                 showGameOverDialog("胡了！", names[playerIndex] + " 自摸胡了！", gameManager.getTable().getPlayer(playerIndex),
                         drawn);
                 return;
@@ -403,6 +419,7 @@ public class GameActivity extends AppCompatActivity {
             actionName = "吃";
 
         showCenteredToast(names[aiIndex] + " " + actionName + "！");
+        announceVoice(actionName);
 
         gameManager.setCurrentPlayerIndex(aiIndex);
 
@@ -477,6 +494,7 @@ public class GameActivity extends AppCompatActivity {
                 List<Tile> aiHand = new java.util.ArrayList<>(ai.getHand());
                 aiHand.add(discarded);
                 if (RuleValidatorHelper.isHu(aiHand, ai.getMelds())) {
+                    announceVoice("胡");
                     showGameOverDialog("胡了！",
                             names[t] + " 胡了 " + names[fromPlayer] + " 的一张 " + discarded.getChineseName() + "！",
                             ai, discarded);
@@ -586,6 +604,7 @@ public class GameActivity extends AppCompatActivity {
         hideActions();
         refreshUI();
         showCenteredToast("吃！请打出一张牌。");
+        announceVoice("吃");
     }
 
     private void executePeng() {
@@ -610,6 +629,7 @@ public class GameActivity extends AppCompatActivity {
         hideActions();
         refreshUI();
         showCenteredToast("碰！请打出一张牌。");
+        announceVoice("碰");
     }
 
     private void executeGang() {
@@ -633,6 +653,7 @@ public class GameActivity extends AppCompatActivity {
         hideActions();
         refreshUI();
         showCenteredToast("杠！请补牌。");
+        announceVoice("杠");
 
         // DRAW REPLACEMENT TILE
         new android.os.Handler().postDelayed(this::drawForPlayer, 1000);
@@ -686,6 +707,7 @@ public class GameActivity extends AppCompatActivity {
 
     private void executeHu() {
         hideActions();
+        announceVoice("胡");
         showGameOverDialog("🎉 你赢了！ 🎉", "恭喜你胡牌了！", gameManager.getTable().getPlayer(0),
                 interruptedTile != null ? interruptedTile : lastDrawnTile);
     }
