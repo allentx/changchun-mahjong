@@ -110,9 +110,9 @@ public class GameActivity extends AppCompatActivity {
 
         int turnOwner = gameManager.getCurrentPlayerIndex();
         String turn = (turnOwner == 0) ? getString(R.string.turn_you) : getString(R.string.turn_ai);
-        String info = turn + " | "
-                + String.format(getString(R.string.wall_count), gameManager.getTable().getWall().size());
-        binding.tvGameInfo.setText(info);
+        String wallCount = String.format(getString(R.string.wall_count), gameManager.getTable().getWall().size());
+
+        binding.tvStatusLeft.setText(turn + " | " + wallCount);
     }
 
     private void addTileToLayout(Tile tile, boolean highlight) {
@@ -196,16 +196,12 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void showCenteredToast(String message) {
-        binding.tvCenteredToast.setText(message);
-        binding.tvCenteredToast.setVisibility(View.VISIBLE);
-        binding.tvCenteredToast.setAlpha(0f);
-        binding.tvCenteredToast.animate().alpha(1f).setDuration(300).withEndAction(() -> {
-            binding.tvCenteredToast.postDelayed(() -> {
-                binding.tvCenteredToast.animate().alpha(0f).setDuration(300).withEndAction(() -> {
-                    binding.tvCenteredToast.setVisibility(View.GONE);
-                }).start();
-            }, 1000);
-        }).start();
+        binding.tvStatusRight.setText(message);
+        binding.tvStatusRight.setAlpha(1.0f);
+        binding.tvStatusRight.animate()
+                .alpha(0.3f)
+                .setDuration(5000)
+                .start();
     }
 
     // Composite View Creator
@@ -731,7 +727,7 @@ public class GameActivity extends AppCompatActivity {
 
             // 2. Add Hand Tiles
             List<Tile> handToDisplay = new java.util.ArrayList<>(winner.getHand());
-            if (winningTile != null) {
+            if (winningTile != null && handToDisplay.size() % 3 == 2) {
                 // If winning tile is in hand (self-draw), remove one instance to display it
                 // separately at the end
                 for (int i = 0; i < handToDisplay.size(); i++) {
