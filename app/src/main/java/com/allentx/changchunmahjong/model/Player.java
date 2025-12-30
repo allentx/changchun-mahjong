@@ -9,19 +9,33 @@ public class Player {
     private final List<Meld> melds;
     private final List<Tile> discards;
     private final int seatIndex;
-    
+    private int score;
+
     public Player(int seatIndex) {
         this.seatIndex = seatIndex;
         this.hand = new ArrayList<>();
         this.melds = new ArrayList<>();
         this.discards = new ArrayList<>();
+        this.score = 100;
+    }
+
+    public int getScore() {
+        return score;
+    }
+
+    public void setScore(int score) {
+        this.score = score;
+    }
+
+    public void changeScore(int delta) {
+        this.score += delta;
     }
 
     public void addTile(Tile tile) {
         hand.add(tile);
         sortHand();
     }
-    
+
     public void removeTile(Tile tile) {
         // Need to be careful with object reference equality vs logical equality
         // Tile.equals uses logical equality (rank/suit)
@@ -47,11 +61,11 @@ public class Player {
     public int getSeatIndex() {
         return seatIndex;
     }
-    
+
     public void addMeld(Meld meld) {
         melds.add(meld);
     }
-    
+
     public void addDiscard(Tile tile) {
         discards.add(tile);
     }

@@ -19,6 +19,7 @@ import com.google.android.flexbox.FlexboxLayout;
 import com.google.android.flexbox.FlexWrap;
 import android.view.ViewGroup;
 import java.util.ArrayList;
+import java.util.Map;
 import com.allentx.changchunmahjong.model.Player;
 import com.allentx.changchunmahjong.logic.SmartAiStrategy;
 
@@ -49,7 +50,9 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void startNewHand() {
-        gameManager = new GameManager();
+        if (gameManager == null) {
+            gameManager = new GameManager();
+        }
         gameManager.startGame(currentBankerIndex);
 
         lastDrawnTile = null;
@@ -148,12 +151,61 @@ public class GameActivity extends AppCompatActivity {
 
         binding.tvStatusLeft.setText(turn + " | " + wallCount);
 
-        // Update Banker Labels
+        // Update Banker Labels and Scores
         int bankerIndex = gameManager.getTable().getBankerIndex();
-        binding.tvHandLabel.setText("我的手牌 (东)" + (bankerIndex == 0 ? " [庄]" : ""));
-        binding.tvPlayer3Info.setText("电脑3 (南)" + (bankerIndex == 1 ? " [庄]" : ""));
-        binding.tvPlayer2Info.setText("电脑2 (西)" + (bankerIndex == 2 ? " [庄]" : ""));
-        binding.tvPlayer1Info.setText("电脑1 (北)" + (bankerIndex == 3 ? " [庄]" : ""));
+
+        String p0 = "我的手牌 (东)";
+        String p1 = "电脑3 (南)";
+        String p2 = "电脑2 (西)";
+        String p3 = "电脑1 (北)";
+
+        // Append Banker Indicator
+        if (bankerIndex == 0)
+            p0 += " [庄]";
+        if (bankerIndex == 1)
+            p1 += " [庄]";
+        if (bankerIndex == 2)
+            p2 += " [庄]";
+        if (bankerIndex == 3)
+            p3 += " [庄]";
+
+        // Append Scores
+        p0 += " [" + gameManager.getTable().getPlayer(0).getScore() + "]";
+        p3 += " [" + gameManager.getTable().getPlayer(3).getScore() + "]";
+        p2 += " [" + gameManager.getTable().getPlayer(2).getScore() + "]";
+        p1 += " [" + gameManager.getTable().getPlayer(1).getScore() + "]"; // South is usually Next to East, so p1 is
+                                                                           // South. Wait, rotation: 0->3->2->1.
+        // Wait, standard mapping:
+        // 0: East (User)
+        // 1: South (Right)
+        // 2: West (Opposite)
+        // 3: North (Left)
+        // My previous mapping in layout might be:
+        // Bottom: 0 (East)
+        // Right: 1 (South) <- tvPlayer3Info? Need to verify mapping.
+        // Top: 2 (West) <- tvPlayer2Info?
+        // Left: 3 (North) <- tvPlayer1Info?
+
+        // Let's check `onCreate` or XML to confirm assignments.
+        // In previous `refreshUI`:
+        // binding.tvHandLabel.setText("我的手牌 (东)"...
+        // binding.tvPlayer3Info.setText("电脑3 (南)"...
+        // binding.tvPlayer2Info.setText("电脑2 (西)"...
+        // binding.tvPlayer1Info.setText("电脑1 (北)"...
+
+        // Assuming:
+        // tvPlayer1Info -> Player 3 (North) ?? No, names[3] is North.
+        // XML usually: Player 1 (Left/Right), Player 2 (Top), Player 3 (Right/Left).
+        // Let's stick to the previous code's assumption:
+        // Player 3 (South) -> Index 1?
+        // Player 2 (West) -> Index 2?
+        // Player 1 (North) -> Index 3?
+
+        // Let's just use the indices consistently with the labels.
+        binding.tvHandLabel.setText(p0);
+        binding.tvPlayer3Info.setText(p1); // Labelled South -> Index 1
+        binding.tvPlayer2Info.setText(p2); // Labelled West -> Index 2
+        binding.tvPlayer1Info.setText(p3); // Labelled North -> Index 3
 
         // Discard Assistance
         if (turnOwner == 0) {
@@ -859,95 +911,170 @@ public class GameActivity extends AppCompatActivity {
 
     private void showGameOverDialog(String title, String message, com.allentx.changchunmahjong.model.Player winner,
             Tile winningTile) {
+
+        // If it's a draw, just show simple dialog
+        if (winner == null) {
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(title)
+                    .setMessage(message)
+                    .setPositiveButton("再来一局", (dialog, which) -> checkAndExecuteRoundEnd(null))
+                    .setNegativeButton("退出", (dialog, which) -> finish())
+                    .setCancelable(false)
+                    .show();
+            return;
+        }
+
+        // Step 1: Show Winning Hand
         androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
         builder.setTitle(title).setMessage(message).setCancelable(false);
 
-        if (winner != null) {
-            android.widget.ScrollView scrollView = new android.widget.ScrollView(this);
-            FlexboxLayout flexboxLayout = new FlexboxLayout(this);
-            flexboxLayout.setFlexWrap(FlexWrap.WRAP);
-            flexboxLayout.setPadding(32, 16, 32, 16);
+        android.widget.ScrollView scrollView = new android.widget.ScrollView(this);
+        FlexboxLayout flexboxLayout = new FlexboxLayout(this);
+        flexboxLayout.setFlexWrap(FlexWrap.WRAP);
+        flexboxLayout.setPadding(32, 16, 32, 16);
 
-            // 1. Add Melds
-            List<com.allentx.changchunmahjong.model.Meld> sortedMelds = new java.util.ArrayList<>(winner.getMelds());
-            java.util.Collections.sort(sortedMelds, (m1, m2) -> {
-                if (m1.getFirstTile() == null || m2.getFirstTile() == null)
-                    return 0;
-                return m1.getFirstTile().compareTo(m2.getFirstTile());
-            });
+        // 1. Add Melds
+        List<com.allentx.changchunmahjong.model.Meld> sortedMelds = new java.util.ArrayList<>(winner.getMelds());
+        java.util.Collections.sort(sortedMelds, (m1, m2) -> {
+            if (m1.getFirstTile() == null || m2.getFirstTile() == null)
+                return 0;
+            return m1.getFirstTile().compareTo(m2.getFirstTile());
+        });
 
-            for (com.allentx.changchunmahjong.model.Meld meld : sortedMelds) {
-                LinearLayout meldGroup = new LinearLayout(this);
-                meldGroup.setOrientation(LinearLayout.HORIZONTAL);
-                for (Tile t : meld.getTiles()) {
-                    View tileView = createTileView(t, false, 0);
-                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(80, 110);
-                    lp.setMargins(2, 2, 2, 2);
-                    tileView.setLayoutParams(lp);
-                    meldGroup.addView(tileView);
-                }
-                flexboxLayout.addView(meldGroup);
-                // Spacer between melds
-                View gap = new View(this);
-                flexboxLayout.addView(gap, new com.google.android.flexbox.FlexboxLayout.LayoutParams(12, 1));
-            }
-
-            // 2. Add Hand Tiles
-            List<Tile> handToDisplay = new java.util.ArrayList<>(winner.getHand());
-            if (winningTile != null && handToDisplay.size() % 3 == 2) {
-                // If winning tile is in hand (self-draw), remove one instance to display it
-                // separately at the end
-                for (int i = 0; i < handToDisplay.size(); i++) {
-                    if (handToDisplay.get(i).equals(winningTile)) {
-                        handToDisplay.remove(i);
-                        break;
-                    }
-                }
-            }
-            java.util.Collections.sort(handToDisplay);
-
-            for (Tile t : handToDisplay) {
+        for (com.allentx.changchunmahjong.model.Meld meld : sortedMelds) {
+            LinearLayout meldGroup = new LinearLayout(this);
+            meldGroup.setOrientation(LinearLayout.HORIZONTAL);
+            for (Tile t : meld.getTiles()) {
                 View tileView = createTileView(t, false, 0);
-                com.google.android.flexbox.FlexboxLayout.LayoutParams lp = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
-                        80, 110);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(80, 110);
                 lp.setMargins(2, 2, 2, 2);
                 tileView.setLayoutParams(lp);
-                flexboxLayout.addView(tileView);
+                meldGroup.addView(tileView);
             }
-
-            // 3. Add the Winning Tile (if win was from discard, it's not in
-            // winner.getHand())
-            if (winningTile != null) {
-                // Large spacer
-                View gap = new View(this);
-                flexboxLayout.addView(gap, new com.google.android.flexbox.FlexboxLayout.LayoutParams(32, 1));
-
-                View tileView = createTileView(winningTile, true, 0); // Highlight winning tile
-                com.google.android.flexbox.FlexboxLayout.LayoutParams lp = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
-                        80, 110);
-                lp.setMargins(2, 2, 2, 2);
-                tileView.setLayoutParams(lp);
-                flexboxLayout.addView(tileView);
-            }
-
-            scrollView.addView(flexboxLayout);
-            builder.setView(scrollView);
+            flexboxLayout.addView(meldGroup);
+            // Spacer between melds
+            View gap = new View(this);
+            flexboxLayout.addView(gap, new com.google.android.flexbox.FlexboxLayout.LayoutParams(12, 1));
         }
 
-        builder.setPositiveButton("再来一局", (dialog, which) -> {
-            // Banker Rotation Logic (Refined)
-            // Banker stays if they win (winnerIndex == currentBankerIndex)
-            // Banker stays if it's a draw (winner == null)
-            // Banker rotates ONLY if someone else wins
-            if (winner != null && winner.getSeatIndex() != currentBankerIndex) {
-                // Rotation Order: East -> North -> West -> South (Indices: 0 -> 3 -> 2 -> 1)
-                currentBankerIndex = (currentBankerIndex + 3) % 4;
+        // 2. Add Hand Tiles
+        List<Tile> handToDisplay = new java.util.ArrayList<>(winner.getHand());
+        if (winningTile != null && handToDisplay.size() % 3 == 2) {
+            // If winning tile is in hand (self-draw), remove one instance to display it
+            // separately at the end
+            for (int i = 0; i < handToDisplay.size(); i++) {
+                if (handToDisplay.get(i).equals(winningTile)) {
+                    handToDisplay.remove(i);
+                    break;
+                }
             }
+        }
+        java.util.Collections.sort(handToDisplay);
 
-            startNewHand();
-        })
+        for (Tile t : handToDisplay) {
+            View tileView = createTileView(t, false, 0);
+            com.google.android.flexbox.FlexboxLayout.LayoutParams lp = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
+                    80, 110);
+            lp.setMargins(2, 2, 2, 2);
+            tileView.setLayoutParams(lp);
+            flexboxLayout.addView(tileView);
+        }
+
+        // 3. Add the Winning Tile
+        if (winningTile != null) {
+            // Large spacer
+            View gap = new View(this);
+            flexboxLayout.addView(gap, new com.google.android.flexbox.FlexboxLayout.LayoutParams(32, 1));
+
+            View tileView = createTileView(winningTile, true, 0); // Highlight winning tile
+            com.google.android.flexbox.FlexboxLayout.LayoutParams lp = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
+                    80, 110);
+            lp.setMargins(2, 2, 2, 2);
+            tileView.setLayoutParams(lp);
+            flexboxLayout.addView(tileView);
+        }
+
+        scrollView.addView(flexboxLayout);
+        builder.setView(scrollView);
+
+        // Button to go to Step 2 (Score Details)
+        builder.setPositiveButton("查看分数", (dialog, which) -> {
+            showScoreDetailsDialog(winner, winningTile, title);
+        });
+
+        builder.show();
+    }
+
+    private void showScoreDetailsDialog(Player winner, Tile winningTile, String title) {
+        boolean isSelfDraw = (interruptedTile == null); // If null, means self-drawn
+        int discarder = isSelfDraw ? -1 : lastDiscardFromPlayer;
+
+        List<Player> allPlayers = new java.util.ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            allPlayers.add(gameManager.getTable().getPlayer(i));
+        }
+
+        com.allentx.changchunmahjong.logic.ScoreCalculator.ScoreResult scoreResult = com.allentx.changchunmahjong.logic.ScoreCalculator
+                .calculate(
+                        winner, winningTile, isSelfDraw,
+                        currentBankerIndex, discarder, allPlayers);
+
+        // Apply Scores
+        for (Map.Entry<Integer, Integer> entry : scoreResult.scoreChanges.entrySet()) {
+            gameManager.getTable().getPlayer(entry.getKey()).changeScore(entry.getValue());
+        }
+        refreshUI();
+
+        // Build Scoreboard Message
+        StringBuilder sb = new StringBuilder();
+        sb.append(scoreResult.description); // The "Why"
+        sb.append("\n----------------\n");
+
+        String[] names = new String[] { "玩家 (东)", "电脑3 (南)", "电脑2 (西)", "电脑1 (北)" };
+        for (int i = 0; i < 4; i++) {
+            int delta = scoreResult.scoreChanges.get(i);
+            int current = gameManager.getTable().getPlayer(i).getScore();
+            String sign = delta >= 0 ? "+" : "";
+            sb.append(String.format("%s: %s%d (总分: %d)\n", names[i], sign, delta, current));
+        }
+
+        // Show Dialog
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(title + " (" + scoreResult.scoreChanges.get(winner.getSeatIndex()) + "分)")
+                .setMessage(sb.toString())
+                .setPositiveButton("再来一局", (dialog, which) -> checkAndExecuteRoundEnd(winner))
                 .setNegativeButton("退出", (dialog, which) -> finish())
+                .setCancelable(false)
                 .show();
+    }
+
+    private void checkAndExecuteRoundEnd(Player winner) {
+        // Check Final Game Over (Any player < 0)
+        boolean isFinalOver = false;
+        for (int i = 0; i < 4; i++) {
+            if (gameManager.getTable().getPlayer(i).getScore() < 0) {
+                isFinalOver = true;
+                break;
+            }
+        }
+
+        if (isFinalOver) {
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("游戏结束")
+                    .setMessage("有玩家分数归零，游戏彻底结束。")
+                    .setPositiveButton("OK", (d, w) -> finish())
+                    .setCancelable(false)
+                    .show();
+            return;
+        }
+
+        // Banker Rotation Logic (Refined)
+        if (winner != null && winner.getSeatIndex() != currentBankerIndex) {
+            // Rotation Order: 0 -> 3 -> 2 -> 1
+            currentBankerIndex = (currentBankerIndex + 3) % 4;
+        }
+
+        startNewHand();
     }
 
     private void checkHu() {
