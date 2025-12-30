@@ -62,8 +62,15 @@ public class SmartAiStrategy {
         if (countInHand >= 3) {
             score += 100;
         } else if (countInHand == 2) {
+            boolean isDragon = target.getSuit() == Tile.Suit.ZI && (target.getRank() == Tile.ID_ZHONG
+                    || target.getRank() == Tile.ID_FA || target.getRank() == Tile.ID_BAI);
             // If we don't have a Peng/Gang yet, a pair is EXTREMELY valuable
-            score += hasPengGang ? 40 : 120;
+            // Dragon pairs are even more valuable now as they unlock sequence-only wins.
+            if (isDragon) {
+                score += 150;
+            } else {
+                score += hasPengGang ? 40 : 120;
+            }
         }
 
         // 2. Check for Sequences (only for numbered tiles)

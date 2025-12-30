@@ -41,13 +41,15 @@ public class GameActivity extends AppCompatActivity {
 
         hideActions();
 
-        // Check if Banker (Human) has Hu at start
+        // Check if Banker (Human) has Hu or An Gang at start
         List<Tile> hand = gameManager.getTable().getPlayer(0).getHand();
         if (!hand.isEmpty()) {
             lastDrawnTile = hand.get(hand.size() - 1);
         }
-        if (RuleValidatorHelper.isHu(hand, gameManager.getTable().getPlayer(0).getMelds())) {
-            showActions(false, false, false, true);
+        boolean canHu = RuleValidatorHelper.isHu(hand, gameManager.getTable().getPlayer(0).getMelds());
+        boolean canAnGang = RuleValidatorHelper.canAnGang(hand);
+        if (canHu || canAnGang) {
+            showActions(false, false, canAnGang, canHu);
         }
 
         refreshUI();
@@ -332,6 +334,14 @@ public class GameActivity extends AppCompatActivity {
                 return;
             }
 
+            // Check AI An Gang
+            Tile anGangTile = RuleValidatorHelper
+                    .getAnGangTile(gameManager.getTable().getPlayer(playerIndex).getHand());
+            if (anGangTile != null && gameManager.getTable().getPlayer(playerIndex).getMelds().size() < 3) {
+                performAiMeld(playerIndex, anGangTile, -1, com.allentx.changchunmahjong.model.Meld.Type.AN_GANG);
+                return;
+            }
+
             // 1. Collect all "visible" tiles for AI to consider
             List<Tile> allDiscards = gameManager.getTable().getDiscards();
             List<Tile> allMelds = new ArrayList<>();
@@ -397,10 +407,14 @@ public class GameActivity extends AppCompatActivity {
                 meldList.add(removeAndGet(hand, tile.getSuit(), tile.getRank() + 2));
             }
         } else {
-            int count = (type == com.allentx.changchunmahjong.model.Meld.Type.MING_GANG) ? 4 : 3;
+            // PENG, MING_GANG, or AN_GANG
+            int count = (type == com.allentx.changchunmahjong.model.Meld.Type.MING_GANG
+                    || type == com.allentx.changchunmahjong.model.Meld.Type.AN_GANG) ? 4 : 3;
             for (int i = 0; i < count; i++)
                 meldList.add(tile);
-            for (int i = 0; i < count - 1; i++) {
+
+            int toRemove = (type == com.allentx.changchunmahjong.model.Meld.Type.AN_GANG) ? 4 : (count - 1);
+            for (int i = 0; i < toRemove; i++) {
                 gameManager.getTable().getPlayer(aiIndex).removeTile(tile);
             }
         }
@@ -413,7 +427,8 @@ public class GameActivity extends AppCompatActivity {
         String actionName = "鸣";
         if (type == com.allentx.changchunmahjong.model.Meld.Type.PENG)
             actionName = "碰";
-        else if (type == com.allentx.changchunmahjong.model.Meld.Type.MING_GANG)
+        else if (type == com.allentx.changchunmahjong.model.Meld.Type.MING_GANG
+                || type == com.allentx.changchunmahjong.model.Meld.Type.AN_GANG)
             actionName = "杠";
         else if (type == com.allentx.changchunmahjong.model.Meld.Type.CHI)
             actionName = "吃";
@@ -424,7 +439,8 @@ public class GameActivity extends AppCompatActivity {
         gameManager.setCurrentPlayerIndex(aiIndex);
 
         // If Gang, AI must draw ANOTHER tile first
-        if (type == com.allentx.changchunmahjong.model.Meld.Type.MING_GANG) {
+        if (type == com.allentx.changchunmahjong.model.Meld.Type.MING_GANG
+                || type == com.allentx.changchunmahjong.model.Meld.Type.AN_GANG) {
             gameManager.drawTile(); // Add to hand
         }
 
@@ -564,10 +580,12 @@ public class GameActivity extends AppCompatActivity {
             String msg = String.format(getString(R.string.you_drew_tile), playerDrawn.getChineseName());
             showCenteredToast(msg);
 
-            // Check self-draw Hu
-            if (RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(0).getHand(),
-                    gameManager.getTable().getPlayer(0).getMelds())) {
-                showActions(false, false, false, true);
+            // Check self-draw Hu or An Gang
+            boolean canHu = RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(0).getHand(),
+                    gameManager.getTable().getPlayer(0).getMelds());
+            boolean canAnGang = RuleValidatorHelper.canAnGang(gameManager.getTable().getPlayer(0).getHand());
+            if (canHu || canAnGang) {
+                showActions(false, false, canAnGang, canHu);
             }
         }
         refreshUI();
@@ -633,26 +651,45 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void executeGang() {
-        List<Tile> discards = gameManager.getTable().getDiscards();
-        if (discards.isEmpty())
-            return;
-        Tile t = discards.remove(discards.size() - 1);
+        Tile anGangTile = RuleValidatorHelper.getAnGangTile(gameManager.getTable().getPlayer(0).getHand());
 
-        List<Tile> meldList = new java.util.ArrayList<>();
-        for (int i = 0; i < 4; i++)
-            meldList.add(t);
+        if (anGangTile != null && (interruptedTile == null
+                || !RuleValidatorHelper.canMingGang(gameManager.getTable().getPlayer(0).getHand(), interruptedTile))) {
+            // An Gang case
+            List<Tile> meldList = new java.util.ArrayList<>();
+            for (int i = 0; i < 4; i++)
+                meldList.add(anGangTile);
+            for (int i = 0; i < 4; i++)
+                gameManager.getTable().getPlayer(0).removeTile(anGangTile);
 
-        for (int i = 0; i < 3; i++)
-            gameManager.getTable().getPlayer(0).removeTile(t);
+            com.allentx.changchunmahjong.model.Meld meld = new com.allentx.changchunmahjong.model.Meld(
+                    com.allentx.changchunmahjong.model.Meld.Type.AN_GANG, meldList, -1);
+            gameManager.getTable().getPlayer(0).addMeld(meld);
 
-        com.allentx.changchunmahjong.model.Meld meld = new com.allentx.changchunmahjong.model.Meld(
-                com.allentx.changchunmahjong.model.Meld.Type.MING_GANG, meldList, lastDiscardFromPlayer);
-        gameManager.getTable().getPlayer(0).addMeld(meld);
+            showCenteredToast("暗杠！请补牌。");
+        } else {
+            // Ming Gang case (from discard)
+            List<Tile> discards = gameManager.getTable().getDiscards();
+            if (discards.isEmpty())
+                return;
+            Tile t = discards.remove(discards.size() - 1);
+
+            List<Tile> meldList = new java.util.ArrayList<>();
+            for (int i = 0; i < 4; i++)
+                meldList.add(t);
+
+            for (int i = 0; i < 3; i++)
+                gameManager.getTable().getPlayer(0).removeTile(t);
+
+            com.allentx.changchunmahjong.model.Meld meld = new com.allentx.changchunmahjong.model.Meld(
+                    com.allentx.changchunmahjong.model.Meld.Type.MING_GANG, meldList, lastDiscardFromPlayer);
+            gameManager.getTable().getPlayer(0).addMeld(meld);
+            showCenteredToast("杠！请补牌。");
+        }
 
         gameManager.setCurrentPlayerIndex(0);
         hideActions();
         refreshUI();
-        showCenteredToast("杠！请补牌。");
         announceVoice("杠");
 
         // DRAW REPLACEMENT TILE

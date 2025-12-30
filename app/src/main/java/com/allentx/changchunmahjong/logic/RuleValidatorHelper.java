@@ -129,7 +129,10 @@ public class RuleValidatorHelper {
                 remaining.remove(pairTile);
                 remaining.remove(pairTile);
 
-                if (canFormExactlyNSets(remaining, requiredSets, alreadyHasPengGang)) {
+                boolean isDragonPair = pairTile.getSuit() == Tile.Suit.ZI && (pairTile.getRank() == Tile.ID_ZHONG
+                        || pairTile.getRank() == Tile.ID_FA || pairTile.getRank() == Tile.ID_BAI);
+
+                if (canFormExactlyNSets(remaining, requiredSets, alreadyHasPengGang || isDragonPair)) {
                     return true;
                 }
             }
@@ -222,17 +225,20 @@ public class RuleValidatorHelper {
     }
 
     public static boolean canAnGang(List<Tile> hand) {
+        return getAnGangTile(hand) != null;
+    }
+
+    public static Tile getAnGangTile(List<Tile> hand) {
         // Check for ANY 4-of-a-kind
-        // Since hand is typically sorted or we iterate
         for (Tile t : hand) {
             int count = 0;
             for (Tile check : hand)
                 if (check.equals(t))
                     count++;
             if (count == 4)
-                return true;
+                return t;
         }
-        return false;
+        return null;
     }
 
     private static boolean has(List<Tile> hand, Tile.Suit suit, int rank) {
