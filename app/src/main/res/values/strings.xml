@@ -20,6 +20,8 @@
     <string name="you_drew_tile">你摸到了: %s</string>
     <string name="ai_discard">%1$s 打出了 %2$s</string>
     <string name="assets_loaded">资源加载完成！</string>
+    <string name="discard_assistance">出牌提示</string>
+    <string name="discard_assistance_desc">提示最佳出牌方案</string>
     
     <array name="player_names">
         <item>我</item>

@@ -130,15 +130,94 @@ public class GameActivity extends AppCompatActivity {
         String wallCount = String.format(getString(R.string.wall_count), gameManager.getTable().getWall().size());
 
         binding.tvStatusLeft.setText(turn + " | " + wallCount);
+
+        // Discard Assistance
+        if (turnOwner == 0) {
+            showDiscardAssistance();
+        }
+    }
+
+    private void showDiscardAssistance() {
+        android.content.SharedPreferences prefs = getSharedPreferences("mahjong_prefs", MODE_PRIVATE);
+        if (!prefs.getBoolean("discard_assistance", true))
+            return;
+
+        Player human = gameManager.getTable().getPlayer(0);
+        List<Tile> hand = human.getHand();
+        if (hand.isEmpty())
+            return;
+
+        // Collect all visible tiles for AI strategy
+        List<Tile> allDiscards = gameManager.getTable().getDiscards();
+        List<Tile> allMeldsTiles = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            for (com.allentx.changchunmahjong.model.Meld m : gameManager.getTable().getPlayer(i).getMelds()) {
+                allMeldsTiles.addAll(m.getTiles());
+            }
+        }
+
+        Tile bestDiscard = SmartAiStrategy.recommendDiscard(hand, allDiscards, human.getMelds(), allMeldsTiles);
+        if (bestDiscard != null) {
+            // Find the view to highlight
+            // Instead of finding the view, let's store the recommended tile and use it in
+            // addTileToLayout
+            recommendedDiscard = bestDiscard;
+            // Since refreshUI already called addTileToLayout, we might need a better way.
+            // Let's refactor refreshUI slightly or just re-refresh if we really want to
+            // avoid state issues.
+            // Actually, let's just update the view manually to avoid infinite loop of
+            // refreshUI.
+            highlightRecommendedTile(bestDiscard);
+        }
+    }
+
+    private Tile recommendedDiscard = null;
+
+    private void highlightRecommendedTile(Tile best) {
+        for (int i = 0; i < binding.layoutHand.getChildCount(); i++) {
+            View v = binding.layoutHand.getChildAt(i);
+            Object tag = v.getTag();
+            if (tag instanceof Tile && tag.equals(best)) {
+                // Apply a distinct highlight: Red Arrow BELOW the tile
+                if (v instanceof LinearLayout) {
+                    LinearLayout container = (LinearLayout) v;
+                    android.widget.ImageView arrow = new android.widget.ImageView(this);
+                    arrow.setImageResource(R.drawable.ic_assist_arrow);
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT);
+                    lp.topMargin = 4;
+                    container.addView(arrow, lp);
+                }
+                break;
+            }
+        }
     }
 
     private void addTileToLayout(Tile tile, boolean highlight) {
+        // Create the tile container (Vertical LinearLayout)
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setGravity(Gravity.CENTER_HORIZONTAL);
+        container.setTag(tile);
+
+        // The tile itself
         View tileView = createTileView(tile, highlight, 0);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(96, 132);
-        params.setMargins(1, 0, 1, 0); // Reduced from 4 to 1
-        tileView.setLayoutParams(params);
-        tileView.setOnClickListener(v -> onTileClicked(tile, tileView));
-        binding.layoutHand.addView(tileView);
+        LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(96, 132);
+        tileView.setLayoutParams(tileParams);
+
+        container.addView(tileView);
+
+        // Allow selection/discarding by clicking anywhere on the container
+        container.setOnClickListener(v -> onTileClicked(tile, container));
+
+        LinearLayout.LayoutParams containerParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        containerParams.setMargins(1, 0, 1, 0);
+        container.setLayoutParams(containerParams);
+
+        binding.layoutHand.addView(container);
     }
 
     private void refreshMelds() {

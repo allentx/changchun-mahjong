@@ -42,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
     private void showSettingsDialog() {
         android.content.SharedPreferences prefs = getSharedPreferences("mahjong_prefs", MODE_PRIVATE);
         boolean soundEnabled = prefs.getBoolean("sound_enabled", true);
+        boolean assistanceEnabled = prefs.getBoolean("discard_assistance", true);
 
         androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
         builder.setTitle(R.string.settings);
@@ -53,12 +54,20 @@ public class MainActivity extends AppCompatActivity {
         androidx.appcompat.widget.SwitchCompat switchSound = new androidx.appcompat.widget.SwitchCompat(this);
         switchSound.setText("开启语音语音 (吃/碰/杠/胡)");
         switchSound.setChecked(soundEnabled);
-
         layout.addView(switchSound);
+
+        androidx.appcompat.widget.SwitchCompat switchAssistance = new androidx.appcompat.widget.SwitchCompat(this);
+        switchAssistance.setText(R.string.discard_assistance);
+        switchAssistance.setChecked(assistanceEnabled);
+        layout.addView(switchAssistance);
+
         builder.setView(layout);
 
         builder.setPositiveButton(android.R.string.ok, (dialog, which) -> {
-            prefs.edit().putBoolean("sound_enabled", switchSound.isChecked()).apply();
+            prefs.edit()
+                    .putBoolean("sound_enabled", switchSound.isChecked())
+                    .putBoolean("discard_assistance", switchAssistance.isChecked())
+                    .apply();
         });
         builder.setNegativeButton(android.R.string.cancel, null);
         builder.show();
