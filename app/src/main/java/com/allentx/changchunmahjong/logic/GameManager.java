@@ -43,7 +43,8 @@ public class GameManager {
     }
 
     public void advanceTurn() {
-        currentPlayerIndex = (currentPlayerIndex + 1) % 4;
+        // Clockwise: 0 (East) -> 3 (North) -> 2 (West) -> 1 (South) -> 0 (East)
+        currentPlayerIndex = (currentPlayerIndex + 3) % 4;
     }
 
     public int getCurrentPlayerIndex() {
@@ -61,8 +62,9 @@ public class GameManager {
      * 3. Roll Dice 2 (Determine Breach Point)
      * 4. Deal Tiles (13/14)
      */
-    public void startGame() {
-        Log.d(TAG, "Starting Game...");
+    public void startGame(int bankerIndex) {
+        Log.d(TAG, "Starting Game with Banker: " + bankerIndex);
+        table.setBankerIndex(bankerIndex);
         table.startRound(); // Shuffles and resets
 
         // --- 2. Roll Dice 1 ---

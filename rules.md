@@ -54,11 +54,14 @@ To win (Hu), a player's hand must consist of 14 tiles that satisfy the following
 
 ### Dealing
 - The **Banker (East)** starts the game with 14 tiles.
+- **Banker Rotation:**
+    - If the banker wins the round (Hu) or if the round ends in a **Draw (Huang Zhuang)**, the banker title remains with the current player (Lian Zhuang).
+    - If any other player wins, the banker status rotates to the next player in the order: **East → North → West → South**.
 - The other three players start with 13 tiles.
 - Dealing is typically determined by two dice rolls to find the wall owner and the breach point.
 
 ### Turn Sequence
-- Turns proceed counter-clockwise: **East → South → West → North**.
+- Turns proceed **Clockwise**: **East → North → West → South** (0 → 3 → 2 → 1).
 - On each turn, a player draws a tile from the wall and then discards one.
 - Discards can be "claimed" by other players for Chi, Peng, Gang, or Hu.
 

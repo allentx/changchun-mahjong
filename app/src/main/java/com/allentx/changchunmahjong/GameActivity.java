@@ -29,6 +29,7 @@ public class GameActivity extends AppCompatActivity {
     private Tile selectedTile;
     private View selectedView;
     private Tile lastDrawnTile;
+    private static int currentBankerIndex = 0; // Persistent across games
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,8 +37,26 @@ public class GameActivity extends AppCompatActivity {
         binding = ActivityGameBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+        soundManager = com.allentx.changchunmahjong.util.SoundManager.getInstance(this);
+
+        binding.btnHu.setOnClickListener(v -> executeHu());
+        binding.btnPeng.setOnClickListener(v -> executePeng());
+        binding.btnGang.setOnClickListener(v -> executeGang());
+        binding.btnChi.setOnClickListener(v -> executeChi());
+        binding.btnPass.setOnClickListener(v -> executePass());
+
+        startNewHand();
+    }
+
+    private void startNewHand() {
         gameManager = new GameManager();
-        gameManager.startGame();
+        gameManager.startGame(currentBankerIndex);
+
+        lastDrawnTile = null;
+        selectedTile = null;
+        selectedView = null;
+        interruptedTile = null;
+        lastDiscardFromPlayer = -1;
 
         hideActions();
 
@@ -46,6 +65,7 @@ public class GameActivity extends AppCompatActivity {
         if (!hand.isEmpty()) {
             lastDrawnTile = hand.get(hand.size() - 1);
         }
+
         boolean canHu = RuleValidatorHelper.isHu(hand, gameManager.getTable().getPlayer(0).getMelds());
         boolean canAnGang = RuleValidatorHelper.canAnGang(hand);
         if (canHu || canAnGang) {
@@ -54,13 +74,10 @@ public class GameActivity extends AppCompatActivity {
 
         refreshUI();
 
-        binding.btnHu.setOnClickListener(v -> executeHu());
-        binding.btnPeng.setOnClickListener(v -> executePeng());
-        binding.btnGang.setOnClickListener(v -> executeGang());
-        binding.btnChi.setOnClickListener(v -> executeChi());
-        binding.btnPass.setOnClickListener(v -> executePass());
-
-        soundManager = com.allentx.changchunmahjong.util.SoundManager.getInstance(this);
+        // If AI is Banker, they must discard first
+        if (currentBankerIndex != 0) {
+            new android.os.Handler().postDelayed(() -> simulateAiTurn(currentBankerIndex), 1000);
+        }
     }
 
     private com.allentx.changchunmahjong.util.SoundManager soundManager;
@@ -130,6 +147,13 @@ public class GameActivity extends AppCompatActivity {
         String wallCount = String.format(getString(R.string.wall_count), gameManager.getTable().getWall().size());
 
         binding.tvStatusLeft.setText(turn + " | " + wallCount);
+
+        // Update Banker Labels
+        int bankerIndex = gameManager.getTable().getBankerIndex();
+        binding.tvHandLabel.setText("我的手牌 (东)" + (bankerIndex == 0 ? " [庄]" : ""));
+        binding.tvPlayer3Info.setText("电脑3 (南)" + (bankerIndex == 1 ? " [庄]" : ""));
+        binding.tvPlayer2Info.setText("电脑2 (西)" + (bankerIndex == 2 ? " [庄]" : ""));
+        binding.tvPlayer1Info.setText("电脑1 (北)" + (bankerIndex == 3 ? " [庄]" : ""));
 
         // Discard Assistance
         if (turnOwner == 0) {
@@ -396,75 +420,80 @@ public class GameActivity extends AppCompatActivity {
             // Turn was stolen or shifted (e.g. by a human Peng/Chi/Gang)
             return;
         }
-        if (gameManager.getTable().getWall().isEmpty()) {
-            showGameOverDialog("流局", "牌墙已空，本局结束。", null, null);
-            return;
+
+        final Player ai = gameManager.getTable().getPlayer(playerIndex);
+        Tile drawn = null;
+
+        // Banker starting hand has 14 tiles, others 13.
+        // If hand size already 14, skip the draw step.
+        if (ai.getHand().size() < 14) {
+            if (gameManager.getTable().getWall().isEmpty()) {
+                showGameOverDialog("流局", "牌墙已空，本局结束。", null, null);
+                return;
+            }
+            drawn = gameManager.drawTile();
+            if (drawn == null) {
+                gameManager.advanceTurn();
+                refreshUI();
+                return;
+            }
         }
 
         final String[] names = getResources().getStringArray(R.array.player_names);
 
-        Tile drawn = gameManager.drawTile();
-        if (drawn != null) {
-            if (RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(playerIndex).getHand(),
-                    gameManager.getTable().getPlayer(playerIndex).getMelds())) {
-                announceVoice("胡");
-                showGameOverDialog("胡了！", names[playerIndex] + " 自摸胡了！", gameManager.getTable().getPlayer(playerIndex),
-                        drawn);
-                return;
-            }
-
-            // Check AI An Gang
-            Tile anGangTile = RuleValidatorHelper
-                    .getAnGangTile(gameManager.getTable().getPlayer(playerIndex).getHand());
-            if (anGangTile != null && gameManager.getTable().getPlayer(playerIndex).getMelds().size() < 3) {
-                performAiMeld(playerIndex, anGangTile, -1, com.allentx.changchunmahjong.model.Meld.Type.AN_GANG);
-                return;
-            }
-
-            // 1. Collect all "visible" tiles for AI to consider
-            List<Tile> allDiscards = gameManager.getTable().getDiscards();
-            List<Tile> allMelds = new ArrayList<>();
-            for (int i = 0; i < 4; i++) {
-                for (com.allentx.changchunmahjong.model.Meld m : gameManager.getTable().getPlayer(i).getMelds()) {
-                    allMelds.addAll(m.getTiles());
-                }
-            }
-
-            // 2. Use Smart Strategy to pick best discard
-            Player ai = gameManager.getTable().getPlayer(playerIndex);
-            Tile recommended = SmartAiStrategy.recommendDiscard(
-                    ai.getHand(),
-                    allDiscards,
-                    ai.getMelds(),
-                    allMelds);
-
-            final Tile toDiscard = (recommended != null) ? recommended : drawn;
-
-            gameManager.discardTile(playerIndex, toDiscard);
-            String msg = String.format(getString(R.string.ai_discard), names[playerIndex], toDiscard.getChineseName());
-            showCenteredToast(msg);
-            refreshUI();
-
-            new android.os.Handler().postDelayed(() -> {
-                if (checkAllInterruptions(toDiscard, playerIndex, false)) {
-                    return;
-                }
-
-                // No interruption, continue loop
-                gameManager.advanceTurn();
-                refreshUI();
-
-                int nextOwner = gameManager.getCurrentPlayerIndex();
-                if (nextOwner != 0) {
-                    new android.os.Handler().postDelayed(() -> simulateAiTurn(nextOwner), 1000);
-                } else {
-                    drawForPlayer();
-                }
-            }, 500);
+        if (RuleValidatorHelper.isHu(ai.getHand(), ai.getMelds())) {
+            announceVoice("胡");
+            showGameOverDialog("胡了！", names[playerIndex] + " 自摸胡了！", ai,
+                    drawn != null ? drawn : ai.getHand().get(ai.getHand().size() - 1));
             return;
         }
-        gameManager.advanceTurn();
+
+        // Check AI An Gang
+        Tile anGangTile = RuleValidatorHelper.getAnGangTile(ai.getHand());
+        if (anGangTile != null && ai.getMelds().size() < 3) {
+            performAiMeld(playerIndex, anGangTile, -1, com.allentx.changchunmahjong.model.Meld.Type.AN_GANG);
+            return;
+        }
+
+        // 1. Collect all "visible" tiles for AI to consider
+        List<Tile> allDiscards = gameManager.getTable().getDiscards();
+        List<Tile> allMelds = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            for (com.allentx.changchunmahjong.model.Meld m : gameManager.getTable().getPlayer(i).getMelds()) {
+                allMelds.addAll(m.getTiles());
+            }
+        }
+
+        // 2. Use Smart Strategy to pick best discard
+        Tile recommended = SmartAiStrategy.recommendDiscard(
+                ai.getHand(),
+                allDiscards,
+                ai.getMelds(),
+                allMelds);
+
+        final Tile toDiscard = (recommended != null) ? recommended : (drawn != null ? drawn : ai.getHand().get(0));
+
+        gameManager.discardTile(playerIndex, toDiscard);
+        String msg = String.format(getString(R.string.ai_discard), names[playerIndex], toDiscard.getChineseName());
+        showCenteredToast(msg);
         refreshUI();
+
+        new android.os.Handler().postDelayed(() -> {
+            if (checkAllInterruptions(toDiscard, playerIndex, false)) {
+                return;
+            }
+
+            // No interruption, continue loop
+            gameManager.advanceTurn();
+            refreshUI();
+
+            int nextOwner = gameManager.getCurrentPlayerIndex();
+            if (nextOwner != 0) {
+                new android.os.Handler().postDelayed(() -> simulateAiTurn(nextOwner), 1000);
+            } else {
+                drawForPlayer();
+            }
+        }, 500);
     }
 
     private void performAiMeld(int aiIndex, Tile tile, int fromPlayer,
@@ -570,7 +599,7 @@ public class GameActivity extends AppCompatActivity {
 
         // --- Priority LEVEL 1: HU (Win) ---
         for (int i = 1; i <= 3; i++) {
-            int t = (fromPlayer + i) % 4;
+            int t = (fromPlayer + (4 - i)) % 4; // Clockwise sequence next
             if (t == 0) {
                 if (skipHuman)
                     continue;
@@ -578,7 +607,7 @@ public class GameActivity extends AppCompatActivity {
                 List<Tile> hand = new java.util.ArrayList<>(human.getHand());
                 hand.add(discarded);
                 if (RuleValidatorHelper.isHu(hand, human.getMelds())) {
-                    boolean canChi = (fromPlayer == 3) && RuleValidatorHelper.canChi(human.getHand(), discarded);
+                    boolean canChi = (fromPlayer == 1) && RuleValidatorHelper.canChi(human.getHand(), discarded);
                     boolean canPeng = RuleValidatorHelper.canPeng(human.getHand(), discarded);
                     boolean canGang = RuleValidatorHelper.canMingGang(human.getHand(), discarded);
                     showActions(canChi, canPeng, canGang, true);
@@ -600,7 +629,7 @@ public class GameActivity extends AppCompatActivity {
 
         // --- Priority LEVEL 2: PENG / GANG ---
         for (int i = 1; i <= 3; i++) {
-            int t = (fromPlayer + i) % 4;
+            int t = (fromPlayer + (4 - i)) % 4; // Clockwise sequence next
             if (t == 0) {
                 if (skipHuman)
                     continue;
@@ -609,7 +638,7 @@ public class GameActivity extends AppCompatActivity {
                     boolean canPeng = RuleValidatorHelper.canPeng(human.getHand(), discarded);
                     boolean canGang = RuleValidatorHelper.canMingGang(human.getHand(), discarded);
                     if (canPeng || canGang) {
-                        boolean canChi = (fromPlayer == 3) && RuleValidatorHelper.canChi(human.getHand(), discarded);
+                        boolean canChi = (fromPlayer == 1) && RuleValidatorHelper.canChi(human.getHand(), discarded);
                         showActions(canChi, canPeng, canGang, false);
                         return true;
                     }
@@ -630,7 +659,7 @@ public class GameActivity extends AppCompatActivity {
         }
 
         // --- Priority LEVEL 3: CHI ---
-        int nextIndex = (fromPlayer + 1) % 4;
+        int nextIndex = (fromPlayer + 3) % 4; // Clockwise next
         if (nextIndex == 0) {
             if (!skipHuman) {
                 Player human = gameManager.getTable().getPlayer(0);
@@ -906,11 +935,16 @@ public class GameActivity extends AppCompatActivity {
         }
 
         builder.setPositiveButton("再来一局", (dialog, which) -> {
-            gameManager = new GameManager();
-            gameManager.startGame();
-            lastDrawnTile = null;
-            hideActions();
-            refreshUI();
+            // Banker Rotation Logic (Refined)
+            // Banker stays if they win (winnerIndex == currentBankerIndex)
+            // Banker stays if it's a draw (winner == null)
+            // Banker rotates ONLY if someone else wins
+            if (winner != null && winner.getSeatIndex() != currentBankerIndex) {
+                // Rotation Order: East -> North -> West -> South (Indices: 0 -> 3 -> 2 -> 1)
+                currentBankerIndex = (currentBankerIndex + 3) % 4;
+            }
+
+            startNewHand();
         })
                 .setNegativeButton("退出", (dialog, which) -> finish())
                 .show();
