@@ -74,6 +74,10 @@ If multiple players want to claim a discarded tile:
 ### Limitations
 - **Exposed Melds:** In this implementation, a player is limited to a maximum of **3 exposed melds** (Chi/Peng/Gang) to prevent "dead hands" and maintain strategic complexity.
 
-## 5. Game End
+## 5. Scoring Rules
+
+Detailed scoring rules, including multipliers (Fan) and payment tables, are documented in [scoring_rules.md](scoring_rules.md).
+
+## 6. Game End
 - The game ends when a player calls **Hu**.
 - If the wall is exhausted (0 tiles remaining) and no one has won, the round ends in a **Draw (Huang Zhuang)**.
