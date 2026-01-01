@@ -15,7 +15,7 @@ Every tile in the AI's hand is assigned a "Keep Value" score. The tile with the 
 
 ### C. Three Suits Requirement
 - **Changchun Rule**: Hand must contain at least one tile from all three suits (Wan, Tiao, Tong).
-- **Protection**: If the AI is missing a suit and holds the last remaining tile of that suit, it receives a +200 point protection bonus.
+- **Endangered Suit Protection**: If the AI holds 2 or fewer tiles of a suit and has no exposed melds for that suit, these tiles receive a heavy safety bonus (+150 to +250 pts). This ensures the AI doesn't accidentally discard its only connection to a required suit early in the game.
 
 ### D. General Sets and Pairs
 - **Triplets/Quads**: Valued at +100 pts.
@@ -29,15 +29,24 @@ Every tile in the AI's hand is assigned a "Keep Value" score. The tile with the 
 ### F. Penalty for Single Honors (Non-Terminals)
 - Single honor tiles that don't satisfy the "only Yao Jiu" protection receive a penalty (-20 pts).
 
-## 2. Dynamic Availability Modifier
+### G. "Hu-Oriented" Bonus (Ready State)
+- **Tenpai (Ready)**: If discarding a tile makes the hand "Tenpai" (waiting for exactly 1 tile to win), the remaining tiles receive a massive "Tenpai Protection" bonus (+500 pts).
+- **Outs Count**: The more tiles that can complete the hand (the "outs"), the higher the bonus for the remaining tiles. This ensures the AI chooses discards that leave the widest possible winning opportunities.
+
+## 2. Hu Progress Simulation
+Instead of just evaluating tiles in isolation, the AI now simulates the outcome of each possible discard:
+- It checks if any discard leads to a "Tenpai" state.
+- It prioritizes discards that satisfy all Changchun requirements (Triplet, 3-Suits, Yao Jiu) simultaneously.
+
+## 3. Dynamic Availability Modifier
 Base scores for "Waits" (Side/Gap) are multiplied by an availability factor (0.0 to 1.0):
 - The AI counts how many copies of the "needed" tiles (the tiles that would complete the sequence) are already visible on the table (discards and exposed melds).
 - If all 4 copies of a needed tile are visible, the availability becomes 0, and the value of keeping that partial sequence drops to zero.
 
-## 3. Global Visibility Check
+## 4. Global Visibility Check
 To prevent the AI from chasing "dead tiles," a global penalty is applied to every tile:
 - **Visibility Penalty**: -5 pts for every copy of that specific tile already visible on the table.
 - This ensures the AI prefers keeping "fresh" tiles that have a higher mathematical probability of being drawn from the wall.
 
-## 4. Randomization
+## 5. Randomization
 If multiple tiles have the same minimum "Keep Value," the AI shuffles the candidates and picks one randomly to avoid predictable behavior.

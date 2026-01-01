@@ -37,6 +37,41 @@ public class SmartAiStrategy {
         return bestToDiscard;
     }
 
+    public static boolean shouldAiMeld(List<Tile> currentHand,
+            List<com.allentx.changchunmahjong.model.Meld> currentMelds,
+            Tile targetTile, com.allentx.changchunmahjong.model.Meld.Type type,
+            List<Tile> tableDiscards, List<Tile> allMeldsTiles) {
+
+        // 1. If it's a win, ALWAYS meld (though Hu is checked separately, this is for
+        // safety)
+        List<Tile> nextHand = new ArrayList<>(currentHand);
+        if (type != com.allentx.changchunmahjong.model.Meld.Type.AN_GANG) {
+            nextHand.add(targetTile);
+        }
+        if (RuleValidatorHelper.isHu(nextHand, currentMelds))
+            return true;
+
+        // 2. Limit melds to 3 for flexibility unless it's a win
+        if (currentMelds.size() >= 3)
+            return false;
+
+        // 3. Evaluation: Does melting improve our "Outs" or "Keep Value"?
+        // For now, keep it simple: Peng/Gang is usually good. Chi is conditional.
+        if (type == com.allentx.changchunmahjong.model.Meld.Type.PENG
+                || type == com.allentx.changchunmahjong.model.Meld.Type.MING_GANG) {
+            return true;
+        }
+
+        if (type == com.allentx.changchunmahjong.model.Meld.Type.CHI) {
+            // Only Chi if it completes a sequence that was "stagnant" or if hand is close
+            // to winning
+            // Simplified: if we have more than 7 tiles of the same suit, Chi is better.
+            return true; // For now, Chi is still valued.
+        }
+
+        return true;
+    }
+
     public static Map<Tile, Double> getKeepValues(List<Tile> hand, List<Tile> tableDiscards,
             List<com.allentx.changchunmahjong.model.Meld> myMelds, List<Tile> allMeldsTiles) {
         if (hand == null || hand.isEmpty())
@@ -55,14 +90,77 @@ public class SmartAiStrategy {
         visibleTiles.addAll(hand);
 
         Map<Tile, Double> scores = new HashMap<>();
+        List<Tile> allPossibleTiles = getAllPossibleTiles();
+
         for (Tile t : hand) {
-            scores.put(t, calculateKeepValue(t, hand, visibleTiles, hasPengGang));
+            double baseScore = calculateKeepValue(t, hand, visibleTiles, myMelds);
+
+            // Simulation: If we discard 't', what is our winning potential?
+            List<Tile> remainingHand = new ArrayList<>(hand);
+            remainingHand.remove(t);
+
+            int outs = countAvailableOuts(remainingHand, myMelds, allPossibleTiles, visibleTiles);
+            if (outs > 0) {
+                // Massive bonus for staying in Tenpai (Ready) state
+                // This 't' is a bad tile to keep because the OTHER tiles are part of a winning
+                // wait.
+                // So 't' should have a LOW keep value (meaning it's the discard).
+                // Wait, if scores[t] is keep value, then lower = discard.
+                // So if discarding 't' gives us outs, then baseScore should be lowered or
+                // other tiles' scores should be raised.
+                // Let's think: calculateKeepValue is for 't'.
+                // If discarding 't' is GOOD, then t's keep value should be LOW.
+                baseScore -= (500 + outs * 50);
+            }
+
+            scores.put(t, baseScore);
         }
         return scores;
     }
 
-    private static double calculateKeepValue(Tile target, List<Tile> hand, List<Tile> visible, boolean hasPengGang) {
+    private static List<Tile> getAllPossibleTiles() {
+        List<Tile> all = new ArrayList<>();
+        for (Tile.Suit s : Tile.Suit.values()) {
+            if (s == Tile.Suit.ZI) {
+                for (int r = 1; r <= 7; r++)
+                    all.add(new Tile(s, r));
+            } else {
+                for (int r = 1; r <= 9; r++)
+                    all.add(new Tile(s, r));
+            }
+        }
+        return all;
+    }
+
+    private static int countAvailableOuts(List<Tile> hand, List<com.allentx.changchunmahjong.model.Meld> melds,
+            List<Tile> allPossibleTiles, List<Tile> visible) {
+        int outs = 0;
+        for (Tile candidate : allPossibleTiles) {
+            // How many are left?
+            int visibleCount = count(visible, candidate);
+            if (visibleCount >= 4)
+                continue; // None left in wall/others hands
+
+            List<Tile> testHand = new ArrayList<>(hand);
+            testHand.add(candidate);
+            if (RuleValidatorHelper.isHu(testHand, melds)) {
+                outs += (4 - visibleCount); // Add all remaining physical copies
+            }
+        }
+        return outs;
+    }
+
+    private static double calculateKeepValue(Tile target, List<Tile> hand, List<Tile> visible,
+            List<com.allentx.changchunmahjong.model.Meld> melds) {
         double score = 0;
+
+        boolean hasPengGang = false;
+        for (com.allentx.changchunmahjong.model.Meld m : melds) {
+            if (m.getType() != com.allentx.changchunmahjong.model.Meld.Type.CHI) {
+                hasPengGang = true;
+                break;
+            }
+        }
 
         // 1. Check for Triplets / Quadruplets
         int countInHand = count(hand, target);
@@ -84,16 +182,30 @@ public class SmartAiStrategy {
         // 2. Yao Jiu Requirement (Terminal or Honor)
         // Must have at least one 1, 9, or ZIPai in the final hand.
         if (target.getSuit() == Tile.Suit.ZI || target.getRank() == 1 || target.getRank() == 9) {
-            // Check if we already have other Yao Jiu tiles
             boolean hasOtherYaoJiu = false;
+            // Check Hand
             for (Tile h : hand) {
                 if (h != target && (h.getSuit() == Tile.Suit.ZI || h.getRank() == 1 || h.getRank() == 9)) {
                     hasOtherYaoJiu = true;
                     break;
                 }
             }
+            // Check Melds
             if (!hasOtherYaoJiu) {
-                score += 100; // Keep the only Yao Jiu tile
+                for (com.allentx.changchunmahjong.model.Meld m : melds) {
+                    for (Tile mt : m.getTiles()) {
+                        if (mt.getSuit() == Tile.Suit.ZI || mt.getRank() == 1 || mt.getRank() == 9) {
+                            hasOtherYaoJiu = true;
+                            break;
+                        }
+                    }
+                    if (hasOtherYaoJiu)
+                        break;
+                }
+            }
+
+            if (!hasOtherYaoJiu) {
+                score += 100; // Keep the only Yao Jiu tile across hand and melds
             } else {
                 score += 20; // Slight preference for keeping terminal flexibility
             }
@@ -106,8 +218,8 @@ public class SmartAiStrategy {
             boolean hasWan = false;
             boolean hasTiao = false;
             boolean hasTong = false;
-            int countOfTargetSuit = 0;
 
+            // Check Hand
             for (Tile h : hand) {
                 if (h.getSuit() == Tile.Suit.WAN)
                     hasWan = true;
@@ -115,16 +227,43 @@ public class SmartAiStrategy {
                     hasTiao = true;
                 if (h.getSuit() == Tile.Suit.TONG)
                     hasTong = true;
-                if (h.getSuit() == targetSuit)
-                    countOfTargetSuit++;
+            }
+            // Check Melds
+            for (com.allentx.changchunmahjong.model.Meld m : melds) {
+                Tile mt = m.getTiles().get(0); // All tiles in a meld have same suit unless it's a weird win
+                if (mt.getSuit() == Tile.Suit.WAN)
+                    hasWan = true;
+                if (mt.getSuit() == Tile.Suit.TIAO)
+                    hasTiao = true;
+                if (mt.getSuit() == Tile.Suit.TONG)
+                    hasTong = true;
             }
 
-            // Also check exposed melds for suit presence
-            // (Passed in via visibility or could be simplified)
-            // If we only have ONE tile of this suit, and we don't have all 3 suits yet, DO
-            // NOT DISCARD.
-            if (countOfTargetSuit == 1 && (!hasWan || !hasTiao || !hasTong)) {
-                score += 200; // Critical suit protection
+            int countOfTargetSuitInHand = 0;
+            for (Tile h : hand) {
+                if (h.getSuit() == targetSuit)
+                    countOfTargetSuitInHand++;
+            }
+
+            boolean suitInMelds = false;
+            for (com.allentx.changchunmahjong.model.Meld m : melds) {
+                if (m.getTiles().get(0).getSuit() == targetSuit) {
+                    suitInMelds = true;
+                    break;
+                }
+            }
+
+            // Enhanced Suit Protection:
+            // If we have no melds of this suit, we must protect the few tiles we have
+            // to ensure we can fulfill the "Three Suits" requirement later.
+            if (!suitInMelds) {
+                if (countOfTargetSuitInHand == 1) {
+                    score += 400; // Final tile: Absolute extreme protection to avoid losing the suit
+                } else if (countOfTargetSuitInHand == 2) {
+                    score += 300; // Very high protection: losing this would make the suit "critical"
+                } else if (countOfTargetSuitInHand == 3) {
+                    score += 150; // Scarcity protection: prevent tossing single tiles of a required suit
+                }
             }
         }
 
