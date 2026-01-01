@@ -155,9 +155,9 @@ public class GameActivity extends AppCompatActivity {
         int bankerIndex = gameManager.getTable().getBankerIndex();
 
         String p0 = "我的手牌 (东)";
-        String p1 = "电脑3 (南)";
+        String p1 = "电脑1 (北)";
         String p2 = "电脑2 (西)";
-        String p3 = "电脑1 (北)";
+        String p3 = "电脑3 (南)";
 
         // Append Banker Indicator
         if (bankerIndex == 0)
@@ -171,41 +171,19 @@ public class GameActivity extends AppCompatActivity {
 
         // Append Scores
         p0 += " [" + gameManager.getTable().getPlayer(0).getScore() + "]";
-        p3 += " [" + gameManager.getTable().getPlayer(3).getScore() + "]";
+        p1 += " [" + gameManager.getTable().getPlayer(1).getScore() + "]";
         p2 += " [" + gameManager.getTable().getPlayer(2).getScore() + "]";
-        p1 += " [" + gameManager.getTable().getPlayer(1).getScore() + "]"; // South is usually Next to East, so p1 is
-                                                                           // South. Wait, rotation: 0->3->2->1.
-        // Wait, standard mapping:
-        // 0: East (User)
-        // 1: South (Right)
-        // 2: West (Opposite)
-        // 3: North (Left)
-        // My previous mapping in layout might be:
-        // Bottom: 0 (East)
-        // Right: 1 (South) <- tvPlayer3Info? Need to verify mapping.
-        // Top: 2 (West) <- tvPlayer2Info?
-        // Left: 3 (North) <- tvPlayer1Info?
+        p3 += " [" + gameManager.getTable().getPlayer(3).getScore() + "]";
 
-        // Let's check `onCreate` or XML to confirm assignments.
-        // In previous `refreshUI`:
-        // binding.tvHandLabel.setText("我的手牌 (东)"...
-        // binding.tvPlayer3Info.setText("电脑3 (南)"...
-        // binding.tvPlayer2Info.setText("电脑2 (西)"...
-        // binding.tvPlayer1Info.setText("电脑1 (北)"...
-
-        // Assuming:
-        // tvPlayer1Info -> Player 3 (North) ?? No, names[3] is North.
-        // XML usually: Player 1 (Left/Right), Player 2 (Top), Player 3 (Right/Left).
-        // Let's stick to the previous code's assumption:
-        // Player 3 (South) -> Index 1?
-        // Player 2 (West) -> Index 2?
-        // Player 1 (North) -> Index 3?
-
-        // Let's just use the indices consistently with the labels.
+        // Mapping Indices to Screen Positions:
+        // Index 0:东 (Bottom) -> tvHandLabel
+        // Index 1:北 (Right) -> tvPlayer1Info
+        // Index 2:西 (Top) -> tvPlayer2Info
+        // Index 3:南 (Left) -> tvPlayer3Info
         binding.tvHandLabel.setText(p0);
-        binding.tvPlayer3Info.setText(p1); // Labelled South -> Index 1
-        binding.tvPlayer2Info.setText(p2); // Labelled West -> Index 2
-        binding.tvPlayer1Info.setText(p3); // Labelled North -> Index 3
+        binding.tvPlayer1Info.setText(p1); // North @ Right
+        binding.tvPlayer2Info.setText(p2); // West @ Top
+        binding.tvPlayer3Info.setText(p3); // South @ Left
 
         // Discard Assistance
         if (turnOwner == 0) {
@@ -298,9 +276,9 @@ public class GameActivity extends AppCompatActivity {
 
     private void refreshMelds() {
         refreshMeldArea(binding.layoutExposed, 0);
-        refreshMeldArea(binding.layoutAi1Melds, 1);
-        refreshMeldArea(binding.layoutAi2Melds, 2);
-        refreshMeldArea(binding.layoutAi3Melds, 3);
+        refreshMeldArea(binding.layoutAi1Melds, 1); // Index 1 is North (Right)
+        refreshMeldArea(binding.layoutAi2Melds, 2); // Index 2 is West (Top)
+        refreshMeldArea(binding.layoutAi3Melds, 3); // Index 3 is South (Left)
     }
 
     private void refreshMeldArea(com.google.android.flexbox.FlexboxLayout layout, int playerIndex) {
@@ -472,6 +450,10 @@ public class GameActivity extends AppCompatActivity {
             // Turn was stolen or shifted (e.g. by a human Peng/Chi/Gang)
             return;
         }
+
+        // Reset interruption state for the new turn
+        interruptedTile = null;
+        lastDiscardFromPlayer = -1;
 
         final Player ai = gameManager.getTable().getPlayer(playerIndex);
         Tile drawn = null;
@@ -651,7 +633,7 @@ public class GameActivity extends AppCompatActivity {
 
         // --- Priority LEVEL 1: HU (Win) ---
         for (int i = 1; i <= 3; i++) {
-            int t = (fromPlayer + (4 - i)) % 4; // Clockwise sequence next
+            int t = (fromPlayer + i) % 4; // Check in sequence: next, next+1, next+2
             if (t == 0) {
                 if (skipHuman)
                     continue;
@@ -681,7 +663,7 @@ public class GameActivity extends AppCompatActivity {
 
         // --- Priority LEVEL 2: PENG / GANG ---
         for (int i = 1; i <= 3; i++) {
-            int t = (fromPlayer + (4 - i)) % 4; // Clockwise sequence next
+            int t = (fromPlayer + i) % 4; // Check in sequence: next, next+1, next+2
             if (t == 0) {
                 if (skipHuman)
                     continue;
@@ -711,7 +693,7 @@ public class GameActivity extends AppCompatActivity {
         }
 
         // --- Priority LEVEL 3: CHI ---
-        int nextIndex = (fromPlayer + 3) % 4; // Clockwise next
+        int nextIndex = (fromPlayer + 1) % 4; // Counter-clockwise next player can Chi
         if (nextIndex == 0) {
             if (!skipHuman) {
                 Player human = gameManager.getTable().getPlayer(0);
@@ -1030,7 +1012,7 @@ public class GameActivity extends AppCompatActivity {
         sb.append(scoreResult.description); // The "Why"
         sb.append("\n----------------\n");
 
-        String[] names = new String[] { "玩家 (东)", "电脑3 (南)", "电脑2 (西)", "电脑1 (北)" };
+        String[] names = new String[] { "玩家 (东)", "电脑1 (北)", "电脑2 (西)", "电脑3 (南)" };
         for (int i = 0; i < 4; i++) {
             int delta = scoreResult.scoreChanges.get(i);
             int current = gameManager.getTable().getPlayer(i).getScore();
@@ -1070,8 +1052,8 @@ public class GameActivity extends AppCompatActivity {
 
         // Banker Rotation Logic (Refined)
         if (winner != null && winner.getSeatIndex() != currentBankerIndex) {
-            // Rotation Order: 0 -> 3 -> 2 -> 1
-            currentBankerIndex = (currentBankerIndex + 3) % 4;
+            // Rotation Order: 0 (East) -> 1 (North) -> 2 (West) -> 3 (South) -> 0
+            currentBankerIndex = (currentBankerIndex + 1) % 4;
         }
 
         startNewHand();

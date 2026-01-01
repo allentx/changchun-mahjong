@@ -43,8 +43,8 @@ public class GameManager {
     }
 
     public void advanceTurn() {
-        // Clockwise: 0 (East) -> 3 (North) -> 2 (West) -> 1 (South) -> 0 (East)
-        currentPlayerIndex = (currentPlayerIndex + 3) % 4;
+        // Turn sequence: 0 (East) -> 1 (North) -> 2 (West) -> 3 (South) -> 0
+        currentPlayerIndex = (currentPlayerIndex + 1) % 4;
     }
 
     public int getCurrentPlayerIndex() {
@@ -73,7 +73,7 @@ public class GameManager {
         Log.d(TAG, "Dice 1: " + dice1);
 
         // Determine Wall Owner.
-        // Count from Banker (East). 1=East, 2=South, 3=West, 4=North, 5=East...
+        // Count from Banker (East). 1=East, 2=North, 3=West, 4=South, 5=East...
         // Formula: (BankerIndex + (dice1 - 1)) % 4
         int wallOwnerIndex = (table.getBankerIndex() + (dice1 - 1)) % 4;
         Log.d(TAG, "Wall Owner Index: " + wallOwnerIndex);
@@ -128,7 +128,7 @@ public class GameManager {
         // 3 rounds of 4
         for (int r = 0; r < 3; r++) {
             for (int p = 0; p < 4; p++) {
-                int seat = (banker + p) % 4;
+                int seat = (banker + p) % 4; // Follows 0->1->2->3 sequence
                 for (int t = 0; t < 4; t++) {
                     table.getPlayer(seat).addTile(wall.remove(0));
                 }

@@ -66,24 +66,8 @@ public class ScoreCalculator {
                 if (i == winnerIndex)
                     continue;
 
-                // Basic Payment = 2 (Self-draw base) * G
-                // But simplified rule from text says:
-                // Winner Not Banker: Banker pays 4G, others 2G.
-                // Winner Is Banker: All pay 4G.
-
-                // Let's deduce per-payer logic strictly:
-                // Base payment P.
-                // If pair involves Banker: P * 2.
-                // Self-draw itself is x2 vs Discard. But rule book simplifies to specific
-                // numbers.
-
-                // 5.1.1 Winner Is Banker
-                // Each pays 4G.
-
-                // 5.1.2 Winner Is Not Banker
-                // Banker pays 4G.
-                // Others pay 2G.
-
+                // 5.1.1 Winner Is Banker: Each pays 4G.
+                // 5.1.2 Winner Is Not Banker: Banker pays 4G, others pay 2G.
                 int payment;
                 boolean payerIsBanker = (i == bankerIndex);
 
@@ -101,7 +85,8 @@ public class ScoreCalculator {
                 totalWin += payment;
 
                 String role = payerIsBanker ? "庄家" : "闲家";
-                desc.append(String.format("%s 支付 %d\n", role, payment));
+                String name = (i == 0) ? "我" : "电脑" + i;
+                desc.append(String.format("%s (%s) 支付 %d\n", name, role, payment));
             }
             result.scoreChanges.put(winnerIndex, totalWin);
 
@@ -111,25 +96,17 @@ public class ScoreCalculator {
             desc.append("点炮胡！\n");
 
             boolean discarderIsBanker = (discarderIndex == bankerIndex);
-
-            // 6.1 Winner Is Banker
-            // Discarder pays 8G.
-            // 6.2 Winner Not Banker, Discarder Is Banker
-            // Discarder pays 6G.
-            // 6.3 Winner Not Banker, Discarder Not Banker
-            // Discarder pays 5G.
-
             int payment;
 
             if (winnerIsBanker) {
-                // Case 6.1
+                // Case 6.1: Winner Is Banker -> Discarder pays 8G.
                 payment = 8 * G;
             } else {
                 if (discarderIsBanker) {
-                    // Case 6.2
+                    // Case 6.2: Winner Not Banker, Discarder Is Banker -> Discarder pays 6G.
                     payment = 6 * G;
                 } else {
-                    // Case 6.3
+                    // Case 6.3: Winner Not Banker, Discarder Not Banker -> Discarder pays 5G.
                     payment = 5 * G;
                 }
             }
@@ -138,7 +115,8 @@ public class ScoreCalculator {
             result.scoreChanges.put(winnerIndex, payment);
 
             String role = discarderIsBanker ? "庄家" : "闲家";
-            desc.append(String.format("放炮者(%s) 支付 %d\n", role, payment));
+            String name = (discarderIndex == 0) ? "我" : "电脑" + discarderIndex;
+            desc.append(String.format("放炮者: %s (%s) 支付 %d\n", name, role, payment));
         }
 
         return result;
