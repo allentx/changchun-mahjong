@@ -14,26 +14,9 @@ public class SmartAiStrategy {
      */
     public static Tile recommendDiscard(List<Tile> hand, List<Tile> tableDiscards,
             List<com.allentx.changchunmahjong.model.Meld> myMelds, List<Tile> allMeldsTiles) {
-        if (hand == null || hand.isEmpty())
+        Map<Tile, Double> scores = getKeepValues(hand, tableDiscards, myMelds, allMeldsTiles);
+        if (scores.isEmpty())
             return null;
-
-        boolean hasPengGang = false;
-        for (com.allentx.changchunmahjong.model.Meld m : myMelds) {
-            if (m.getType() != com.allentx.changchunmahjong.model.Meld.Type.CHI) {
-                hasPengGang = true;
-                break;
-            }
-        }
-
-        List<Tile> visibleTiles = new ArrayList<>(tableDiscards);
-        visibleTiles.addAll(allMeldsTiles);
-        // Important: Hand is also visible to the owner AI
-        visibleTiles.addAll(hand);
-
-        Map<Tile, Double> scores = new HashMap<>();
-        for (Tile t : hand) {
-            scores.put(t, calculateKeepValue(t, hand, visibleTiles, hasPengGang));
-        }
 
         // Find tile with minimum score
         Tile bestToDiscard = hand.get(0);
@@ -52,6 +35,30 @@ public class SmartAiStrategy {
         }
 
         return bestToDiscard;
+    }
+
+    public static Map<Tile, Double> getKeepValues(List<Tile> hand, List<Tile> tableDiscards,
+            List<com.allentx.changchunmahjong.model.Meld> myMelds, List<Tile> allMeldsTiles) {
+        if (hand == null || hand.isEmpty())
+            return new HashMap<>();
+
+        boolean hasPengGang = false;
+        for (com.allentx.changchunmahjong.model.Meld m : myMelds) {
+            if (m.getType() != com.allentx.changchunmahjong.model.Meld.Type.CHI) {
+                hasPengGang = true;
+                break;
+            }
+        }
+
+        List<Tile> visibleTiles = new ArrayList<>(tableDiscards);
+        visibleTiles.addAll(allMeldsTiles);
+        visibleTiles.addAll(hand);
+
+        Map<Tile, Double> scores = new HashMap<>();
+        for (Tile t : hand) {
+            scores.put(t, calculateKeepValue(t, hand, visibleTiles, hasPengGang));
+        }
+        return scores;
     }
 
     private static double calculateKeepValue(Tile target, List<Tile> hand, List<Tile> visible, boolean hasPengGang) {

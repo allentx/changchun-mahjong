@@ -110,8 +110,38 @@ public class GameActivity extends AppCompatActivity {
 
     private int lastDiscardFromPlayer = -1;
     private Tile interruptedTile = null;
+    private Tile recommendedDiscard = null;
+    private java.util.Map<Tile, Double> currentHandScores = new java.util.HashMap<>();
 
     private void refreshUI() {
+        // Collect all visible tiles for AI strategy early for assistance
+        Player human = gameManager.getTable().getPlayer(0);
+        List<Tile> hand = human.getHand();
+        android.content.SharedPreferences prefs = getSharedPreferences("mahjong_prefs", MODE_PRIVATE);
+        boolean assistanceOn = prefs.getBoolean("discard_assistance", true);
+
+        currentHandScores.clear();
+        recommendedDiscard = null;
+        if (assistanceOn && !hand.isEmpty()) {
+            List<Tile> allDiscards = gameManager.getTable().getDiscards();
+            List<Tile> allMeldsTiles = new ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                for (com.allentx.changchunmahjong.model.Meld m : gameManager.getTable().getPlayer(i).getMelds()) {
+                    allMeldsTiles.addAll(m.getTiles());
+                }
+            }
+            currentHandScores = SmartAiStrategy.getKeepValues(hand, allDiscards, human.getMelds(), allMeldsTiles);
+
+            // Find best discard from scores
+            double minScore = Double.MAX_VALUE;
+            for (Map.Entry<Tile, Double> entry : currentHandScores.entrySet()) {
+                if (entry.getValue() < minScore) {
+                    minScore = entry.getValue();
+                    recommendedDiscard = entry.getKey();
+                }
+            }
+        }
+
         // 1. Secret Hand
         binding.layoutHand.removeAllViews();
         List<Tile> fullHand = gameManager.getTable().getPlayer(0).getHand();
@@ -186,46 +216,10 @@ public class GameActivity extends AppCompatActivity {
         binding.tvPlayer3Info.setText(p3); // South @ Left
 
         // Discard Assistance
-        if (turnOwner == 0) {
-            showDiscardAssistance();
+        if (turnOwner == 0 && recommendedDiscard != null) {
+            highlightRecommendedTile(recommendedDiscard);
         }
     }
-
-    private void showDiscardAssistance() {
-        android.content.SharedPreferences prefs = getSharedPreferences("mahjong_prefs", MODE_PRIVATE);
-        if (!prefs.getBoolean("discard_assistance", true))
-            return;
-
-        Player human = gameManager.getTable().getPlayer(0);
-        List<Tile> hand = human.getHand();
-        if (hand.isEmpty())
-            return;
-
-        // Collect all visible tiles for AI strategy
-        List<Tile> allDiscards = gameManager.getTable().getDiscards();
-        List<Tile> allMeldsTiles = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            for (com.allentx.changchunmahjong.model.Meld m : gameManager.getTable().getPlayer(i).getMelds()) {
-                allMeldsTiles.addAll(m.getTiles());
-            }
-        }
-
-        Tile bestDiscard = SmartAiStrategy.recommendDiscard(hand, allDiscards, human.getMelds(), allMeldsTiles);
-        if (bestDiscard != null) {
-            // Find the view to highlight
-            // Instead of finding the view, let's store the recommended tile and use it in
-            // addTileToLayout
-            recommendedDiscard = bestDiscard;
-            // Since refreshUI already called addTileToLayout, we might need a better way.
-            // Let's refactor refreshUI slightly or just re-refresh if we really want to
-            // avoid state issues.
-            // Actually, let's just update the view manually to avoid infinite loop of
-            // refreshUI.
-            highlightRecommendedTile(bestDiscard);
-        }
-    }
-
-    private Tile recommendedDiscard = null;
 
     private void highlightRecommendedTile(Tile best) {
         for (int i = 0; i < binding.layoutHand.getChildCount(); i++) {
@@ -256,7 +250,8 @@ public class GameActivity extends AppCompatActivity {
         container.setTag(tile);
 
         // The tile itself
-        View tileView = createTileView(tile, highlight, 0);
+        Double score = currentHandScores.get(tile);
+        View tileView = createTileView(tile, highlight, 0, score);
         LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(96, 132);
         tileView.setLayoutParams(tileParams);
 
@@ -293,7 +288,7 @@ public class GameActivity extends AppCompatActivity {
             java.util.Collections.sort(tiles);
 
             for (Tile t : tiles) {
-                View tileView = createTileView(t, false, 0);
+                View tileView = createTileView(t, false, 0, null);
                 // Human: 72x96 (was 120x160), AI & Discards: 80x110
                 int size = (playerIndex == 0) ? 72 : 80;
                 int height = (playerIndex == 0) ? 96 : 110;
@@ -333,7 +328,7 @@ public class GameActivity extends AppCompatActivity {
             String key = t.getSuit().name() + "_" + t.getRank();
             int count = counts.get(key);
 
-            View discardView = createTileView(t, false, count);
+            View discardView = createTileView(t, false, count, null);
             com.google.android.flexbox.FlexboxLayout.LayoutParams params = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
                     80, 110);
             params.setMargins(4, 4, 4, 4);
@@ -355,7 +350,7 @@ public class GameActivity extends AppCompatActivity {
     }
 
     // Composite View Creator
-    private View createTileView(Tile t, boolean highlight, int count) {
+    private View createTileView(Tile t, boolean highlight, int count, Double score) {
         android.widget.FrameLayout container = new android.widget.FrameLayout(this);
         container.setBackgroundResource(R.drawable.tile_bg);
 
@@ -377,13 +372,13 @@ public class GameActivity extends AppCompatActivity {
         }
         container.addView(iv, new android.widget.FrameLayout.LayoutParams(-1, -1));
 
-        // Count Badge
+        // Count Badge (For discards)
         if (count > 1) {
             TextView tvCount = new TextView(this);
             tvCount.setText("x" + count);
             tvCount.setTextColor(Color.RED);
             tvCount.setShadowLayer(4, 1, 1, Color.WHITE);
-            tvCount.setTextSize(14f); // Changed from 14sp to 14f for float literal
+            tvCount.setTextSize(14f);
             tvCount.setTypeface(null, android.graphics.Typeface.BOLD);
             android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(
                     android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -391,6 +386,21 @@ public class GameActivity extends AppCompatActivity {
             lp.gravity = Gravity.BOTTOM | Gravity.END;
             lp.setMargins(0, 0, 4, 4);
             container.addView(tvCount, lp);
+        }
+
+        // Score Badge (Discard Assistance)
+        if (score != null) {
+            TextView tvScore = new TextView(this);
+            tvScore.setText(String.valueOf(score.intValue()));
+            tvScore.setTextColor(Color.BLUE);
+            tvScore.setBackgroundColor(Color.parseColor("#80FFFFFF")); // Semi-transparent white
+            tvScore.setTextSize(10f);
+            tvScore.setPadding(4, 0, 4, 0);
+            android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT);
+            lp.gravity = Gravity.TOP | Gravity.START;
+            container.addView(tvScore, lp);
         }
 
         return container;
@@ -927,7 +937,7 @@ public class GameActivity extends AppCompatActivity {
             LinearLayout meldGroup = new LinearLayout(this);
             meldGroup.setOrientation(LinearLayout.HORIZONTAL);
             for (Tile t : meld.getTiles()) {
-                View tileView = createTileView(t, false, 0);
+                View tileView = createTileView(t, false, 0, null);
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(80, 110);
                 lp.setMargins(2, 2, 2, 2);
                 tileView.setLayoutParams(lp);
@@ -954,7 +964,7 @@ public class GameActivity extends AppCompatActivity {
         java.util.Collections.sort(handToDisplay);
 
         for (Tile t : handToDisplay) {
-            View tileView = createTileView(t, false, 0);
+            View tileView = createTileView(t, false, 0, null);
             com.google.android.flexbox.FlexboxLayout.LayoutParams lp = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
                     80, 110);
             lp.setMargins(2, 2, 2, 2);
@@ -968,7 +978,7 @@ public class GameActivity extends AppCompatActivity {
             View gap = new View(this);
             flexboxLayout.addView(gap, new com.google.android.flexbox.FlexboxLayout.LayoutParams(32, 1));
 
-            View tileView = createTileView(winningTile, true, 0); // Highlight winning tile
+            View tileView = createTileView(winningTile, true, 0, null); // Highlight winning tile
             com.google.android.flexbox.FlexboxLayout.LayoutParams lp = new com.google.android.flexbox.FlexboxLayout.LayoutParams(
                     80, 110);
             lp.setMargins(2, 2, 2, 2);
