@@ -48,5 +48,26 @@ To prevent the AI from chasing "dead tiles," a global penalty is applied to ever
 - **Visibility Penalty**: -5 pts for every copy of that specific tile already visible on the table.
 - This ensures the AI prefers keeping "fresh" tiles that have a higher mathematical probability of being drawn from the wall.
 
-## 5. Randomization
+## 5. DaBao and ViewBao Logic (AI)
+
+Computer players also participate in the DaBao mechanic with the following heuristics:
+
+### A. Decision Making
+- An AI player will choose to **DaBao** if:
+    - They are in a **Tenpai** state.
+    - All Changchun requirements (Triplet, 3-Suits, Yao Jiu) are already met.
+    - No one else has DaBao'ed yet.
+- An AI player will choose to **ViewBao** if:
+    - They are in a **Tenpai** state.
+    - They haven't viewed the Bao yet.
+    - Someone else has already DaBao'ed.
+
+### B. Hand Locking Awareness
+- Once an AI player is **locked** (after DaBao/ViewBao):
+    - **Discard Logic**: The AI is restricted to discarding only the newly drawn tile. The Smart Discard strategy is bypassed to comply with the hand-locking rule.
+    - **Interruption Filtering**: The AI automatically ignores **Chi** and **Peng** opportunities.
+    - **Strategic Gang**: The AI will only perform a **Gang** (Ming or An) if it mathematically verifies that the action does not change their current winning wait set (outs). This ensures they don't break their Tenpai state while locked.
+
+## 6. Randomization
 If multiple tiles have the same minimum "Keep Value," the AI shuffles the candidates and picks one randomly to avoid predictable behavior.
+

@@ -4,10 +4,11 @@
 
 1. This game is played by **four players**.
 2. Exactly **one player is designated as the Banker** at any given time.
-3. Each player begins the game with **100 points**.
-4. All scoring is **zero-sum**: any points gained by one player are lost by others.
-5. All point values are **whole numbers**.
-6. The game will end when a player reaches below **0 points**.
+3. Banker status rotates **Counter-Clockwise**: **East → North → West → South (0 → 3 → 2 → 1)**.
+4. Each player begins the game with **100 points**.
+5. All scoring is **zero-sum**: any points gained by one player are lost by others.
+6. All point values are **whole numbers**.
+7. The game will end when a player reaches below **0 points**.
 
 ---
 

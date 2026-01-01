@@ -56,12 +56,11 @@ To win (Hu), a player's hand must consist of 14 tiles that satisfy the following
 - The **Banker (East)** starts the game with 14 tiles.
 - **Banker Rotation:**
     - If the banker wins the round (Hu) or if the round ends in a **Draw (Huang Zhuang)**, the banker title remains with the current player (Lian Zhuang).
-    - If any other player wins, the banker status rotates to the next player in the order: **East → North → West → South**.
+    - If any other player wins, the banker status rotates to the next player in the **Counter-Clockwise** order: **East → North → West → South (0 → 3 → 2 → 1)**.
 - The other three players start with 13 tiles.
-- Dealing is typically determined by two dice rolls to find the wall owner and the breach point.
 
 ### Turn Sequence
-- Turns proceed **Clockwise**: **East → North → West → South** (0 → 3 → 2 → 1).
+- Turns proceed **Counter-Clockwise**: **East → North → West → South (0 → 3 → 2 → 1)**.
 - On each turn, a player draws a tile from the wall and then discards one.
 - Discards can be "claimed" by other players for Chi, Peng, Gang, or Hu.
 
@@ -71,13 +70,36 @@ If multiple players want to claim a discarded tile:
 2. **Peng** or **Gang** has the second priority.
 3. **Chi** has the lowest priority and can only be claimed by the next player in turn.
 
-### Limitations
-- **Exposed Melds:** In this implementation, a player is limited to a maximum of **3 exposed melds** (Chi/Peng/Gang) to prevent "dead hands" and maintain strategic complexity.
+## 5. DaBao (打宝) and ViewBao (看宝)
 
-## 5. Scoring Rules
+The "Bao" (Treasure) tile is a unique mechanic in Changchun Mahjong that provides a special path to winning.
 
-Detailed scoring rules, including multipliers (Fan) and payment tables, are documented in [scoring_rules.md](scoring_rules.md).
+### DaBao (Strike the Treasure)
+- A player who is **Tenpai** (waiting for one tile to win) and has exactly 13 tiles in their logical hand (before drawing) can choose to **DaBao**.
+- Upon DaBao, the player draws a tile from the wall. This tile is then designated as the **Bao Tile**.
+- The Bao Tile is placed independently on the table and is visible to the owner.
+- **Hand Locking:** Once a player has DaBao'ed, their hand of tiles is **locked**.
+    - They cannot discard any tile from their original hand.
+    - On subsequent turns, they can only discard the tile they just drew.
+    - They cannot perform **Chi** or **Peng**.
+    - They can only **Gang** if it does not change their winning wait set (Tenpai preservation).
 
-## 6. Game End
+### ViewBao (Look at the Treasure)
+- If another player has already DaBao'ed, a Tenpai player can choose to **ViewBao** on their turn.
+- Viewing the Bao provides the same **Hand Locking** restrictions as DaBao.
+- The player will be able to see the independent Bao Tile.
+
+### Electronic Bao (Winning via Bao)
+- If a player draws a tile that matches the current **Bao Tile**, and they are the Bao owner or have viewed the Bao, they automatically win (Hu). This is called "Electronic Hu".
+
+## 6. Limitations
+- **Exposed Melds:** A player is limited to a maximum of **3 exposed melds** (Chi/Peng/Gang).
+
+## 7. Scoring Rules
+
+Detailed scoring rules are documented in [scoring_rules.md](scoring_rules.md).
+
+## 8. Game End
 - The game ends when a player calls **Hu**.
 - If the wall is exhausted (0 tiles remaining) and no one has won, the round ends in a **Draw (Huang Zhuang)**.
+
