@@ -64,16 +64,64 @@ public class SmartAiStrategy {
         } else if (countInHand == 2) {
             boolean isDragon = target.getSuit() == Tile.Suit.ZI && (target.getRank() == Tile.ID_ZHONG
                     || target.getRank() == Tile.ID_FA || target.getRank() == Tile.ID_BAI);
-            // If we don't have a Peng/Gang yet, a pair is EXTREMELY valuable
-            // Dragon pairs are even more valuable now as they unlock sequence-only wins.
-            if (isDragon) {
-                score += 150;
+
+            // Priority: Need at least one Triplet (Peng/Gang/AnGang) to win.
+            // If we don't have any yet, pairs are critical.
+            if (!hasPengGang) {
+                score += isDragon ? 180 : 150; // Higher value to encourage forming the first triplet
             } else {
-                score += hasPengGang ? 40 : 120;
+                score += isDragon ? 150 : 40;
             }
         }
 
-        // 2. Check for Sequences (only for numbered tiles)
+        // 2. Yao Jiu Requirement (Terminal or Honor)
+        // Must have at least one 1, 9, or ZIPai in the final hand.
+        if (target.getSuit() == Tile.Suit.ZI || target.getRank() == 1 || target.getRank() == 9) {
+            // Check if we already have other Yao Jiu tiles
+            boolean hasOtherYaoJiu = false;
+            for (Tile h : hand) {
+                if (h != target && (h.getSuit() == Tile.Suit.ZI || h.getRank() == 1 || h.getRank() == 9)) {
+                    hasOtherYaoJiu = true;
+                    break;
+                }
+            }
+            if (!hasOtherYaoJiu) {
+                score += 100; // Keep the only Yao Jiu tile
+            } else {
+                score += 20; // Slight preference for keeping terminal flexibility
+            }
+        }
+
+        // 3. Three Suits Requirement (Must have WAN, TIAO, and TONG)
+        // Ensure we don't discard the last tile of a suit we need.
+        Tile.Suit targetSuit = target.getSuit();
+        if (targetSuit != Tile.Suit.ZI) {
+            boolean hasWan = false;
+            boolean hasTiao = false;
+            boolean hasTong = false;
+            int countOfTargetSuit = 0;
+
+            for (Tile h : hand) {
+                if (h.getSuit() == Tile.Suit.WAN)
+                    hasWan = true;
+                if (h.getSuit() == Tile.Suit.TIAO)
+                    hasTiao = true;
+                if (h.getSuit() == Tile.Suit.TONG)
+                    hasTong = true;
+                if (h.getSuit() == targetSuit)
+                    countOfTargetSuit++;
+            }
+
+            // Also check exposed melds for suit presence
+            // (Passed in via visibility or could be simplified)
+            // If we only have ONE tile of this suit, and we don't have all 3 suits yet, DO
+            // NOT DISCARD.
+            if (countOfTargetSuit == 1 && (!hasWan || !hasTiao || !hasTong)) {
+                score += 200; // Critical suit protection
+            }
+        }
+
+        // 4. Check for Sequences (only for numbered tiles)
         if (target.isNumber()) {
             Tile.Suit suit = target.getSuit();
             int rank = target.getRank();
