@@ -10,6 +10,8 @@ public class Player {
     private final List<Tile> discards;
     private final int seatIndex;
     private int score;
+    private boolean isHandLocked;
+    private boolean hasViewedBao;
 
     public Player(int seatIndex) {
         this.seatIndex = seatIndex;
@@ -17,6 +19,8 @@ public class Player {
         this.melds = new ArrayList<>();
         this.discards = new ArrayList<>();
         this.score = 100;
+        this.isHandLocked = false;
+        this.hasViewedBao = false;
     }
 
     public int getScore() {
@@ -68,5 +72,21 @@ public class Player {
 
     public void addDiscard(Tile tile) {
         discards.add(tile);
+    }
+
+    public boolean isHandLocked() {
+        return isHandLocked;
+    }
+
+    public void setHandLocked(boolean handLocked) {
+        isHandLocked = handLocked;
+    }
+
+    public boolean hasViewedBao() {
+        return hasViewedBao;
+    }
+
+    public void setViewedBao(boolean viewedBao) {
+        hasViewedBao = viewedBao;
     }
 }

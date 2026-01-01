@@ -241,6 +241,115 @@ public class RuleValidatorHelper {
         return null;
     }
 
+    public static boolean isTenpai(List<Tile> hand, List<Meld> melds) {
+        int logicalTotal = hand.size() + (melds.size() * 3);
+        if (logicalTotal == 13) {
+            // Try adding every possible tile to see if it results in a Hu
+            for (Tile.Suit s : Tile.Suit.values()) {
+                int maxRank = (s == Tile.Suit.ZI) ? 7 : 9;
+                for (int r = 1; r <= maxRank; r++) {
+                    List<Tile> testHand = new ArrayList<>(hand);
+                    testHand.add(new Tile(s, r));
+                    if (isHu(testHand, melds))
+                        return true;
+                }
+            }
+        } else if (logicalTotal == 14) {
+            // Check if discarding any tile leaves us in Tenpai (waiting for 1)
+            for (Tile t : hand) {
+                List<Tile> subHand = new ArrayList<>(hand);
+                subHand.remove(t);
+                if (isTenpai(subHand, melds))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    public static List<Tile> getTenpaiDiscards(List<Tile> hand, List<Meld> melds) {
+        List<Tile> discards = new ArrayList<>();
+        int logicalTotal = hand.size() + (melds.size() * 3);
+        if (logicalTotal != 14)
+            return discards;
+
+        for (Tile t : hand) {
+            List<Tile> subHand = new ArrayList<>(hand);
+            subHand.remove(t);
+            if (isTenpai(subHand, melds)) {
+                boolean alreadyAdded = false;
+                for (Tile d : discards)
+                    if (d.equals(t))
+                        alreadyAdded = true;
+                if (!alreadyAdded)
+                    discards.add(t);
+            }
+        }
+        return discards;
+    }
+
+    public static List<Tile> getOuts(List<Tile> hand, List<Meld> melds) {
+        List<Tile> outs = new ArrayList<>();
+        if (melds.size() * 3 + hand.size() != 13)
+            return outs;
+
+        for (Tile.Suit s : Tile.Suit.values()) {
+            int maxRank = (s == Tile.Suit.ZI) ? 7 : 9;
+            for (int r = 1; r <= maxRank; r++) {
+                Tile candidate = new Tile(s, r);
+                List<Tile> testHand = new ArrayList<>(hand);
+                testHand.add(candidate);
+                if (isHu(testHand, melds)) {
+                    outs.add(candidate);
+                }
+            }
+        }
+        return outs;
+    }
+
+    public static boolean wouldGangAffectWait(List<Tile> hand, List<Meld> melds, Tile gangTile, boolean isAnGang) {
+        List<Tile> originalOuts = getOuts(hand, melds);
+        if (originalOuts.isEmpty())
+            return false; // Not in Tenpai or doesn't have valid outs, allow Gang normally?
+                          // (Usually locked means you ARE in Tenpai)
+
+        // Simulate Gang
+        List<Tile> testHand = new ArrayList<>(hand);
+        List<Meld> testMelds = new ArrayList<>(melds);
+
+        List<Tile> mTiles = new ArrayList<>();
+        for (int i = 0; i < 4; i++)
+            mTiles.add(gangTile);
+
+        if (isAnGang) {
+            // Remove 4 from hand
+            for (int i = 0; i < 4; i++)
+                testHand.remove(gangTile);
+        } else {
+            // Remove 3 from hand (1 comes from discard)
+            for (int i = 0; i < 3; i++)
+                testHand.remove(gangTile);
+        }
+        testMelds.add(new Meld(isAnGang ? Meld.Type.AN_GANG : Meld.Type.MING_GANG, mTiles, -1));
+
+        List<Tile> newOuts = getOuts(testHand, testMelds);
+
+        // Compare sets: Gang is allowed if wait set remains unchanged
+        if (originalOuts.size() != newOuts.size())
+            return true;
+        for (Tile out : originalOuts) {
+            boolean found = false;
+            for (Tile n : newOuts) {
+                if (n.equals(out)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                return true;
+        }
+        return false;
+    }
+
     private static boolean has(List<Tile> hand, Tile.Suit suit, int rank) {
         for (Tile t : hand) {
             if (t.getSuit() == suit && t.getRank() == rank)

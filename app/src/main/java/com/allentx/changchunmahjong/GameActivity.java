@@ -30,6 +30,7 @@ public class GameActivity extends AppCompatActivity {
     private Tile selectedTile;
     private View selectedView;
     private Tile lastDrawnTile;
+    private boolean isPreDrawPhase = false;
     private static int currentBankerIndex = 0; // Persistent across games
 
     @Override
@@ -44,6 +45,8 @@ public class GameActivity extends AppCompatActivity {
         binding.btnPeng.setOnClickListener(v -> executePeng());
         binding.btnGang.setOnClickListener(v -> executeGang());
         binding.btnChi.setOnClickListener(v -> executeChi());
+        binding.btnDaBao.setOnClickListener(v -> executeDaBao());
+        binding.btnViewBao.setOnClickListener(v -> executeViewBao());
         binding.btnPass.setOnClickListener(v -> executePass());
 
         startNewHand();
@@ -69,18 +72,13 @@ public class GameActivity extends AppCompatActivity {
             lastDrawnTile = hand.get(hand.size() - 1);
         }
 
-        boolean canHu = RuleValidatorHelper.isHu(hand, gameManager.getTable().getPlayer(0).getMelds());
-        boolean canAnGang = RuleValidatorHelper.canAnGang(hand);
-        if (canHu || canAnGang) {
-            showActions(false, false, canAnGang, canHu);
-        }
-
         refreshUI();
 
         // If AI is Banker, they must discard first
         if (currentBankerIndex != 0) {
             new android.os.Handler().postDelayed(() -> simulateAiTurn(currentBankerIndex), 1000);
         }
+        // Human banker: just wait for them to discard (they have 14 tiles)
     }
 
     private com.allentx.changchunmahjong.util.SoundManager soundManager;
@@ -101,11 +99,18 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void showActions(boolean canChi, boolean canPeng, boolean canGang, boolean canHu) {
+        showActions(canChi, canPeng, canGang, canHu, false, false);
+    }
+
+    private void showActions(boolean canChi, boolean canPeng, boolean canGang, boolean canHu, boolean canDaBao,
+            boolean canViewBao) {
         binding.layoutActions.setVisibility(View.VISIBLE);
         binding.btnChi.setVisibility(canChi ? View.VISIBLE : View.GONE);
         binding.btnPeng.setVisibility(canPeng ? View.VISIBLE : View.GONE);
         binding.btnGang.setVisibility(canGang ? View.VISIBLE : View.GONE);
         binding.btnHu.setVisibility(canHu ? View.VISIBLE : View.GONE);
+        binding.btnDaBao.setVisibility(canDaBao ? View.VISIBLE : View.GONE);
+        binding.btnViewBao.setVisibility(canViewBao ? View.VISIBLE : View.GONE);
     }
 
     private int lastDiscardFromPlayer = -1;
@@ -184,10 +189,12 @@ public class GameActivity extends AppCompatActivity {
         // Update Banker Labels and Scores
         int bankerIndex = gameManager.getTable().getBankerIndex();
 
-        String p0 = "我的手牌 (东)";
-        String p1 = "电脑1 (北)";
-        String p2 = "电脑2 (西)";
-        String p3 = "电脑3 (南)";
+        // Fixed Wind Labels by screen position (do not rotate)
+        // Bottom = East (东), Top = West (西), Right = North (北), Left = South (南)
+        String p0 = "我的手牌 (东)"; // Bottom - always East
+        String p1 = "电脑1 (北)"; // Right - always North
+        String p2 = "电脑2 (西)"; // Top - always West
+        String p3 = "电脑3 (南)"; // Left - always South
 
         // Append Banker Indicator
         if (bankerIndex == 0)
@@ -215,9 +222,41 @@ public class GameActivity extends AppCompatActivity {
         binding.tvPlayer2Info.setText(p2); // West @ Top
         binding.tvPlayer3Info.setText(p3); // South @ Left
 
-        // Discard Assistance
+        // Update Status Indicators (Bao Owner/Viewer)
+        TextView[] statusViews = { binding.tvPlayer0Status, binding.tvPlayer1Status, binding.tvPlayer2Status,
+                binding.tvPlayer3Status };
+        int baoOwner = gameManager.getTable().getBaoOwnerIndex();
+        for (int i = 0; i < 4; i++) {
+            Player p = gameManager.getTable().getPlayer(i);
+            if (i == baoOwner) {
+                statusViews[i].setText(" [宝主]");
+                statusViews[i].setVisibility(View.VISIBLE);
+            } else if (p.hasViewedBao()) {
+                statusViews[i].setText(" [看宝]");
+                statusViews[i].setVisibility(View.VISIBLE);
+            } else {
+                statusViews[i].setVisibility(View.GONE);
+            }
+        }
+
+        // Discard Assistance & Bao Display
         if (turnOwner == 0 && recommendedDiscard != null) {
             highlightRecommendedTile(recommendedDiscard);
+        }
+
+        // Display Bao Info
+        Tile bao = gameManager.getTable().getBaoTile();
+        if (bao != null) {
+            human = gameManager.getTable().getPlayer(0);
+            boolean canSee = (gameManager.getTable().getBaoOwnerIndex() == 0 || human.hasViewedBao());
+            if (canSee) {
+                binding.tvStatusRight.setText("宝: " + bao.getChineseName());
+            } else {
+                binding.tvStatusRight.setText("宝: ?");
+            }
+            binding.tvStatusRight.setAlpha(1.0f);
+        } else {
+            binding.tvStatusRight.setText("");
         }
     }
 
@@ -433,7 +472,13 @@ public class GameActivity extends AppCompatActivity {
         }
 
         if (selectedTile == tile && selectedView == view) {
-            // Double click -> Discard
+            // Hand Locking Rule: If locked, can only discard the LAST drawn tile
+            Player human = gameManager.getTable().getPlayer(0);
+            if (human.isHandLocked() && tile != lastDrawnTile) {
+                showCenteredToast("已打宝，只能打出刚摸到的牌！");
+                return;
+            }
+
             gameManager.discardTile(0, tile);
             selectedTile = null;
             selectedView = null;
@@ -441,9 +486,7 @@ public class GameActivity extends AppCompatActivity {
 
             // Start interruption check sequence instead of direct turn advancement
             if (!checkAllInterruptions(tile, 0, false)) {
-                gameManager.advanceTurn();
-                refreshUI();
-                new android.os.Handler().postDelayed(() -> simulateAiTurn(gameManager.getCurrentPlayerIndex()), 1000);
+                handleBaoExhaustion(0);
             }
         } else {
             // Select
@@ -455,21 +498,45 @@ public class GameActivity extends AppCompatActivity {
         }
     }
 
-    private void simulateAiTurn(final int playerIndex) {
-        if (gameManager.getCurrentPlayerIndex() != playerIndex) {
-            // Turn was stolen or shifted (e.g. by a human Peng/Chi/Gang)
+    private void initiateAiTurn(final int playerIndex) {
+        if (gameManager.getCurrentPlayerIndex() != playerIndex)
             return;
-        }
 
         // Reset interruption state for the new turn
         interruptedTile = null;
         lastDiscardFromPlayer = -1;
 
+        // AI Pre-Draw DaBao Check (Only if logical hand has 13 tiles)
+        Player ai = gameManager.getTable().getPlayer(playerIndex);
+        boolean alreadyTenpai = RuleValidatorHelper.isTenpai(ai.getHand(), ai.getMelds());
+        int logicalHandSize = ai.getHand().size() + (ai.getMelds().size() * 3);
+        boolean canDaBaoWait = (logicalHandSize == 13);
+
+        if (gameManager.getTable().getBaoOwnerIndex() == -1 && alreadyTenpai && canDaBaoWait) {
+            // AI DaBao Pre-Draw
+            String[] names = getResources().getStringArray(R.array.player_names);
+            showCenteredToast(names[playerIndex] + " 准备打宝...");
+            new android.os.Handler().postDelayed(() -> {
+                executeBaoDraw(playerIndex);
+            }, 1000);
+        } else if (gameManager.getTable().getBaoOwnerIndex() != -1 && !ai.hasViewedBao() && alreadyTenpai
+                && canDaBaoWait) {
+            // AI ViewBao Pre-Draw
+            gameManager.executeViewBao(playerIndex);
+            String[] names = getResources().getStringArray(R.array.player_names);
+            showCenteredToast(names[playerIndex] + " 看宝了！");
+            new android.os.Handler().postDelayed(() -> {
+                proceedWithAiTurn(playerIndex);
+            }, 1000);
+        } else {
+            proceedWithAiTurn(playerIndex);
+        }
+    }
+
+    private void proceedWithAiTurn(final int playerIndex) {
         final Player ai = gameManager.getTable().getPlayer(playerIndex);
         Tile drawn = null;
 
-        // Banker starting hand has 14 tiles, others 13.
-        // If hand size already 14, skip the draw step.
         if (ai.getHand().size() < 14) {
             if (gameManager.getTable().getWall().isEmpty()) {
                 showGameOverDialog("流局", "牌墙已空，本局结束。", null, null);
@@ -483,6 +550,7 @@ public class GameActivity extends AppCompatActivity {
             }
         }
 
+        refreshUI();
         final String[] names = getResources().getStringArray(R.array.player_names);
 
         if (RuleValidatorHelper.isHu(ai.getHand(), ai.getMelds())) {
@@ -495,11 +563,15 @@ public class GameActivity extends AppCompatActivity {
         // Check AI An Gang
         Tile anGangTile = RuleValidatorHelper.getAnGangTile(ai.getHand());
         if (anGangTile != null && ai.getMelds().size() < 3) {
-            performAiMeld(playerIndex, anGangTile, -1, com.allentx.changchunmahjong.model.Meld.Type.AN_GANG);
-            return;
+            boolean allowGang = !ai.isHandLocked()
+                    || !RuleValidatorHelper.wouldGangAffectWait(ai.getHand(), ai.getMelds(), anGangTile, true);
+            if (allowGang) {
+                performAiMeld(playerIndex, anGangTile, -1, com.allentx.changchunmahjong.model.Meld.Type.AN_GANG);
+                return;
+            }
         }
 
-        // 1. Collect all "visible" tiles for AI to consider
+        // DISCARD
         List<Tile> allDiscards = gameManager.getTable().getDiscards();
         List<Tile> allMelds = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
@@ -508,14 +580,14 @@ public class GameActivity extends AppCompatActivity {
             }
         }
 
-        // 2. Use Smart Strategy to pick best discard
-        Tile recommended = SmartAiStrategy.recommendDiscard(
-                ai.getHand(),
-                allDiscards,
-                ai.getMelds(),
-                allMelds);
-
-        final Tile toDiscard = (recommended != null) ? recommended : (drawn != null ? drawn : ai.getHand().get(0));
+        Tile toDiscard;
+        if (ai.isHandLocked() && drawn != null) {
+            toDiscard = drawn;
+            showCenteredToast(names[playerIndex] + " 已打宝，只能打出刚摸到的牌！");
+        } else {
+            Tile recommended = SmartAiStrategy.recommendDiscard(ai.getHand(), allDiscards, ai.getMelds(), allMelds);
+            toDiscard = (recommended != null) ? recommended : (drawn != null ? drawn : ai.getHand().get(0));
+        }
 
         gameManager.discardTile(playerIndex, toDiscard);
         String msg = String.format(getString(R.string.ai_discard), names[playerIndex], toDiscard.getChineseName());
@@ -532,12 +604,16 @@ public class GameActivity extends AppCompatActivity {
             refreshUI();
 
             int nextOwner = gameManager.getCurrentPlayerIndex();
-            if (nextOwner != 0) {
-                new android.os.Handler().postDelayed(() -> simulateAiTurn(nextOwner), 1000);
-            } else {
-                drawForPlayer();
-            }
+            simulateAiTurn(nextOwner);
         }, 500);
+    }
+
+    private void simulateAiTurn(final int playerIndex) {
+        if (playerIndex == 0) {
+            initiatePlayerTurn();
+        } else {
+            initiateAiTurn(playerIndex);
+        }
     }
 
     private void performAiMeld(int aiIndex, Tile tile, int fromPlayer,
@@ -622,14 +698,7 @@ public class GameActivity extends AppCompatActivity {
                 refreshUI();
                 new android.os.Handler().postDelayed(() -> {
                     if (!checkAllInterruptions(toDiscard, aiIndex, false)) {
-                        gameManager.advanceTurn();
-                        refreshUI();
-                        int next = gameManager.getCurrentPlayerIndex();
-                        if (next != 0) {
-                            simulateAiTurn(next);
-                        } else {
-                            drawForPlayer();
-                        }
+                        handleBaoExhaustion(aiIndex);
                     }
                 }, 500);
             }
@@ -679,10 +748,17 @@ public class GameActivity extends AppCompatActivity {
                     continue;
                 Player human = gameManager.getTable().getPlayer(0);
                 if (human.getMelds().size() < 3) {
-                    boolean canPeng = RuleValidatorHelper.canPeng(human.getHand(), discarded);
+                    boolean canPeng = !human.isHandLocked() && RuleValidatorHelper.canPeng(human.getHand(), discarded);
                     boolean canGang = RuleValidatorHelper.canMingGang(human.getHand(), discarded);
+                    if (human.isHandLocked() && canGang) {
+                        // Locked player can only Gang if it doesn't change their wait set
+                        canGang = !RuleValidatorHelper.wouldGangAffectWait(human.getHand(), human.getMelds(), discarded,
+                                false);
+                    }
+
                     if (canPeng || canGang) {
-                        boolean canChi = (fromPlayer == 1) && RuleValidatorHelper.canChi(human.getHand(), discarded);
+                        boolean canChi = !human.isHandLocked() && (fromPlayer == 1)
+                                && RuleValidatorHelper.canChi(human.getHand(), discarded);
                         showActions(canChi, canPeng, canGang, false);
                         return true;
                     }
@@ -691,10 +767,15 @@ public class GameActivity extends AppCompatActivity {
                 Player ai = gameManager.getTable().getPlayer(t);
                 if (ai.getMelds().size() < 3) {
                     if (RuleValidatorHelper.canMingGang(ai.getHand(), discarded)) {
-                        performAiMeld(t, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.MING_GANG);
-                        return true;
+                        boolean allowGang = !ai.isHandLocked() || !RuleValidatorHelper.wouldGangAffectWait(ai.getHand(),
+                                ai.getMelds(), discarded, false);
+                        if (allowGang) {
+                            performAiMeld(t, discarded, fromPlayer,
+                                    com.allentx.changchunmahjong.model.Meld.Type.MING_GANG);
+                            return true;
+                        }
                     }
-                    if (RuleValidatorHelper.canPeng(ai.getHand(), discarded)) {
+                    if (!ai.isHandLocked() && RuleValidatorHelper.canPeng(ai.getHand(), discarded)) {
                         performAiMeld(t, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.PENG);
                         return true;
                     }
@@ -707,14 +788,15 @@ public class GameActivity extends AppCompatActivity {
         if (nextIndex == 0) {
             if (!skipHuman) {
                 Player human = gameManager.getTable().getPlayer(0);
-                if (human.getMelds().size() < 3 && RuleValidatorHelper.canChi(human.getHand(), discarded)) {
+                if (!human.isHandLocked() && human.getMelds().size() < 3
+                        && RuleValidatorHelper.canChi(human.getHand(), discarded)) {
                     showActions(true, false, false, false);
                     return true;
                 }
             }
         } else {
             Player ai = gameManager.getTable().getPlayer(nextIndex);
-            if (ai.getMelds().size() < 3 && RuleValidatorHelper.canChi(ai.getHand(), discarded)) {
+            if (!ai.isHandLocked() && ai.getMelds().size() < 3 && RuleValidatorHelper.canChi(ai.getHand(), discarded)) {
                 performAiMeld(nextIndex, discarded, fromPlayer, com.allentx.changchunmahjong.model.Meld.Type.CHI);
                 return true;
             }
@@ -723,11 +805,51 @@ public class GameActivity extends AppCompatActivity {
         return false;
     }
 
+    private void initiatePlayerTurn() {
+        isPreDrawPhase = false;
+        Player human = gameManager.getTable().getPlayer(0);
+
+        // Pre-Draw DaBao Check (Only if logical hand has 13 tiles)
+        boolean alreadyTenpai = RuleValidatorHelper.isTenpai(human.getHand(), human.getMelds());
+        int logicalHandSize = human.getHand().size() + (human.getMelds().size() * 3);
+        boolean canDaBaoWait = (logicalHandSize == 13);
+
+        if (alreadyTenpai && canDaBaoWait) {
+            boolean canDaBao = (gameManager.getTable().getBaoOwnerIndex() == -1);
+            boolean canViewBao = (gameManager.getTable().getBaoOwnerIndex() != -1) && (!human.hasViewedBao());
+
+            if (canDaBao || canViewBao) {
+                isPreDrawPhase = true;
+                showActions(false, false, false, false, canDaBao, canViewBao);
+                showCenteredToast("轮到你了！打宝或是摸牌？");
+                return;
+            }
+        }
+
+        drawForPlayer();
+    }
+
     private void drawForPlayer() {
         interruptedTile = null;
         lastDiscardFromPlayer = -1;
-        Tile playerDrawn = gameManager.drawTile();
-        lastDrawnTile = playerDrawn;
+        isPreDrawPhase = false;
+
+        // Wall check
+        if (gameManager.getTable().getWall().isEmpty()) {
+            showGameOverDialog("流局", "牌墙已空，本局结束。", null, null);
+            return;
+        }
+
+        Player human = gameManager.getTable().getPlayer(0);
+        Tile playerDrawn = null;
+        if (human.getHand().size() < 14) {
+            playerDrawn = gameManager.drawTile();
+            lastDrawnTile = playerDrawn;
+        } else {
+            // Already 14, skip draw (happens if Banker turn start bypasses initiation)
+            playerDrawn = null;
+        }
+
         if (playerDrawn != null) {
             String msg = String.format(getString(R.string.you_drew_tile), playerDrawn.getChineseName());
             showCenteredToast(msg);
@@ -735,9 +857,22 @@ public class GameActivity extends AppCompatActivity {
             // Check self-draw Hu or An Gang
             boolean canHu = RuleValidatorHelper.isHu(gameManager.getTable().getPlayer(0).getHand(),
                     gameManager.getTable().getPlayer(0).getMelds());
+
+            // DaBao extensions: if drawing Bao, also a win
+            Tile bao = gameManager.getTable().getBaoTile();
+            if (bao != null && playerDrawn.equals(bao)) {
+                if (gameManager.getTable().getBaoOwnerIndex() == 0
+                        || gameManager.getTable().getPlayer(0).hasViewedBao()) {
+                    canHu = true;
+                }
+            }
+
             boolean canAnGang = RuleValidatorHelper.canAnGang(gameManager.getTable().getPlayer(0).getHand());
+
+            // During-turn DaBao check removed from here, only in initiatePlayerTurn now.
+            // But we still need to show actions for Hu or Gang.
             if (canHu || canAnGang) {
-                showActions(false, false, canAnGang, canHu);
+                showActions(false, false, canAnGang, canHu, false, false);
             }
         }
         refreshUI();
@@ -808,6 +943,12 @@ public class GameActivity extends AppCompatActivity {
         if (anGangTile != null && (interruptedTile == null
                 || !RuleValidatorHelper.canMingGang(gameManager.getTable().getPlayer(0).getHand(), interruptedTile))) {
             // An Gang case
+            Player human = gameManager.getTable().getPlayer(0);
+            if (human.isHandLocked()
+                    && RuleValidatorHelper.wouldGangAffectWait(human.getHand(), human.getMelds(), anGangTile, true)) {
+                showCenteredToast("已打宝/看宝，此杠会改变听牌，不允许！");
+                return;
+            }
             List<Tile> meldList = new java.util.ArrayList<>();
             for (int i = 0; i < 4; i++)
                 meldList.add(anGangTile);
@@ -827,6 +968,15 @@ public class GameActivity extends AppCompatActivity {
             Tile t = discards.remove(discards.size() - 1);
 
             List<Tile> meldList = new java.util.ArrayList<>();
+            Player human = gameManager.getTable().getPlayer(0);
+            if (human.isHandLocked()
+                    && RuleValidatorHelper.wouldGangAffectWait(human.getHand(), human.getMelds(), t, false)) {
+                showCenteredToast("已打宝/看宝，此杠会改变听牌，不允许！");
+                // Put back tile to discards since we removed it
+                gameManager.getTable().getDiscards().add(t);
+                return;
+            }
+
             for (int i = 0; i < 4; i++)
                 meldList.add(t);
 
@@ -850,30 +1000,26 @@ public class GameActivity extends AppCompatActivity {
 
     private void executePass() {
         hideActions();
-        interruptedTile = null;
-
-        if (gameManager.getCurrentPlayerIndex() == 0) {
-            // Self-draw case: Just hide actions and wait for human to discard.
-            refreshUI();
-            return;
-        }
-
-        // Interruption case: Move to next priority (AI)
-        if (interruptedTile != null) {
-            // Check if any AI wants it after human passed
-            if (checkAllInterruptions(interruptedTile, lastDiscardFromPlayer, true)) {
+        if (isPreDrawPhase) {
+            drawForPlayer();
+        } else {
+            // Normal pass (e.g. human skips Peng/Gang/Chi)
+            if (gameManager.getCurrentPlayerIndex() == 0) {
+                // Self-draw case: Just hide actions and wait for human to discard.
+                refreshUI();
                 return;
             }
-        }
 
-        // Resume AI cycle
-        gameManager.advanceTurn();
-        refreshUI();
+            // Interruption case: Move to next priority (AI)
+            if (interruptedTile != null) {
+                // Check if any AI wants it after human passed
+                if (checkAllInterruptions(interruptedTile, lastDiscardFromPlayer, true)) {
+                    return;
+                }
+            }
 
-        if (gameManager.getCurrentPlayerIndex() != 0) {
-            new android.os.Handler().postDelayed(() -> simulateAiTurn(gameManager.getCurrentPlayerIndex()), 1000);
-        } else {
-            drawForPlayer();
+            // Resume AI cycle
+            handleBaoExhaustion(lastDiscardFromPlayer);
         }
     }
 
@@ -899,6 +1045,91 @@ public class GameActivity extends AppCompatActivity {
         announceVoice("胡");
         showGameOverDialog("🎉 你赢了！ 🎉", "恭喜你胡牌了！", gameManager.getTable().getPlayer(0),
                 interruptedTile != null ? interruptedTile : lastDrawnTile);
+    }
+
+    private void executeDaBao() {
+        hideActions();
+        executeBaoDraw(0);
+    }
+
+    private void executeBaoDraw(int playerIndex) {
+        Tile bao = gameManager.executeDaBao(playerIndex);
+        if (bao != null) {
+            if (playerIndex == 0) {
+                showCenteredToast("你摸到了宝牌：" + bao.getChineseName());
+                refreshUI();
+                // After DaBao, continue to regular draw
+                new android.os.Handler().postDelayed(this::drawForPlayer, 1000);
+            } else {
+                refreshUI();
+                // AI also continues to its standard turn after a Bao draw
+                new android.os.Handler().postDelayed(() -> proceedWithAiTurn(playerIndex), 1000);
+            }
+        }
+    }
+
+    private void handleBaoExhaustion(int lastPlayerIndex) {
+        if (gameManager.isBaoExhausted()) {
+            int replacer = gameManager.getNextEligibleBaoPlayer(lastPlayerIndex + 1);
+            if (replacer != -1) {
+                String[] names = getResources().getStringArray(R.array.player_names);
+                String msg = names[replacer] + " 正在重新挑选宝牌...";
+                showCenteredToast(msg);
+
+                new android.os.Handler().postDelayed(() -> executeBaoReplacement(replacer), 1500);
+                return;
+            }
+        }
+
+        // No exhaustion or no eligible replacer, proceed with turn
+        gameManager.advanceTurn();
+        refreshUI();
+        int next = gameManager.getCurrentPlayerIndex();
+        simulateAiTurn(next);
+    }
+
+    private void executeBaoReplacement(int playerIndex) {
+        Tile newBao = gameManager.replaceBao(playerIndex);
+        if (newBao != null) {
+            String[] names = getResources().getStringArray(R.array.player_names);
+            if (playerIndex == 0) {
+                showCenteredToast("你重新挑选了宝牌：" + newBao.getChineseName());
+            } else {
+                showCenteredToast(names[playerIndex] + " 重新挑选了宝牌！");
+            }
+
+            // Check if immediate Hu for replacer (rare but possible)
+            Player replacer = gameManager.getTable().getPlayer(playerIndex);
+            if (RuleValidatorHelper.isHu(replacer.getHand(), replacer.getMelds())) {
+                announceVoice("胡");
+                showGameOverDialog("打宝胡！", names[playerIndex] + " 换宝即胡！", replacer, newBao);
+                return;
+            }
+
+            refreshUI();
+        }
+
+        // After replacement, advance turn as if nothing happened (or do we proceed from
+        // replacer?)
+        // The user said: "whoever's the next player after the 4 copies become
+        // visible... pick Another Bao"
+        // Then the game continues.
+        gameManager.advanceTurn();
+        refreshUI();
+        int next = gameManager.getCurrentPlayerIndex();
+        simulateAiTurn(next);
+    }
+
+    private void executeViewBao() {
+        gameManager.executeViewBao(0);
+        Tile bao = gameManager.getTable().getBaoTile();
+        showCenteredToast("看宝！宝牌是：" + (bao != null ? bao.getChineseName() : "未知"));
+        hideActions();
+        refreshUI();
+
+        if (isPreDrawPhase) {
+            new android.os.Handler().postDelayed(this::drawForPlayer, 1000);
+        }
     }
 
     private void showGameOverDialog(String title, String message, com.allentx.changchunmahjong.model.Player winner,

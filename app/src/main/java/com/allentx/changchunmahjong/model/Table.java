@@ -19,6 +19,9 @@ public class Table {
     private int dice1_Sum;
     private int dice2_Sum;
 
+    private Tile baoTile;
+    private int baoOwnerIndex = -1; // -1 means no one has DaBao'ed yet
+
     public Table() {
         mahjongSet = new MahjongSet();
         players = new Player[4];
@@ -43,11 +46,17 @@ public class Table {
             p.getHand().clear();
             p.getMelds().clear();
             p.getDiscards().clear();
+            p.setViewedBao(false); // Reset Bao viewing status
+            p.setHandLocked(false); // Reset hand lock status
         }
 
         // Dice should be set by GameManager, but we can reset them
         dice1_Sum = 0;
         dice2_Sum = 0;
+
+        // Reset Bao state
+        baoTile = null;
+        baoOwnerIndex = -1;
     }
 
     public Tile drawFromWall() {
@@ -78,5 +87,21 @@ public class Table {
 
     public List<Tile> getDiscards() {
         return discards;
+    }
+
+    public Tile getBaoTile() {
+        return baoTile;
+    }
+
+    public void setBaoTile(Tile baoTile) {
+        this.baoTile = baoTile;
+    }
+
+    public int getBaoOwnerIndex() {
+        return baoOwnerIndex;
+    }
+
+    public void setBaoOwnerIndex(int baoOwnerIndex) {
+        this.baoOwnerIndex = baoOwnerIndex;
     }
 }

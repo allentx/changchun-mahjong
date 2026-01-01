@@ -28,6 +28,16 @@
             android:text="电脑2 (西)"
             android:textColor="@color/white"
             android:textSize="14sp"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:id="@+id/tvPlayer2Status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#FFD700"
+            android:textSize="12sp"
+            android:textStyle="bold"
             android:layout_marginBottom="4dp" />
 
         <com.google.android.flexbox.FlexboxLayout
@@ -56,6 +66,16 @@
             android:text="电脑1 (北)"
             android:textColor="@color/white"
             android:textSize="14sp"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:id="@+id/tvPlayer1Status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#FFD700"
+            android:textSize="12sp"
+            android:textStyle="bold"
             android:layout_marginBottom="4dp" />
 
         <com.google.android.flexbox.FlexboxLayout
@@ -84,6 +104,16 @@
             android:text="电脑3 (南)"
             android:textColor="@color/white"
             android:textSize="14sp"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:id="@+id/tvPlayer3Status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#FFD700"
+            android:textSize="12sp"
+            android:textStyle="bold"
             android:layout_marginBottom="4dp" />
 
         <com.google.android.flexbox.FlexboxLayout
@@ -156,17 +186,35 @@
 
     <!-- Centered Toast Emulator (Removed, now in status bar) -->
 
-    <TextView
-        android:id="@+id/tvHandLabel"
+    <LinearLayout
+        android:id="@+id/layoutPlayer0Info"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:layout_marginBottom="4dp"
-        android:text="我的手牌 (东)"
-        android:textColor="@color/white"
-        android:textSize="14sp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         app:layout_constraintBottom_toTopOf="@+id/layoutBottomArea"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextView
+            android:id="@+id/tvHandLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="我的手牌 (东)"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/tvPlayer0Status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text=""
+            android:textColor="#FFD700"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 
     <!-- Action Buttons -->
     <LinearLayout
@@ -186,6 +234,22 @@
             android:text="@string/hu"
             android:backgroundTint="#FFD700" 
             android:textColor="@color/black"/>
+
+        <Button
+            android:id="@+id/btnDaBao"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="打宝"
+            android:backgroundTint="#FF9800" />
+
+        <Button
+            android:id="@+id/btnViewBao"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="看宝"
+            android:backgroundTint="#03A9F4" />
             
         <Button
             android:id="@+id/btnGang"

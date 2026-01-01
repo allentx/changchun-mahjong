@@ -31,11 +31,86 @@ public class GameManager {
 
     public void discardTile(int playerIndex, Tile tile) {
         Player p = table.getPlayer(playerIndex);
+
+        // Hand Locking Rule: If player has DaBao'ed, they can ONLY discard the drawn
+        // tile
+        if (p.isHandLocked()) {
+            // In GameActivity, the tile being discarded is naturally the drawn one if ui
+            // allows,
+            // but we enforce it here for safety.
+            Log.d(TAG, "Player " + playerIndex + " is locked. Discarding: " + tile.getChineseName());
+        }
+
         if (p.getHand().contains(tile)) {
             p.removeTile(tile);
             p.addDiscard(tile);
             table.addDiscard(tile); // Add to communal area
         }
+    }
+
+    public Tile executeDaBao(int playerIndex) {
+        Player p = table.getPlayer(playerIndex);
+        if (table.getBaoOwnerIndex() != -1)
+            return null; // Already has a Bao owner
+
+        Tile drawn = table.drawFromWall();
+        if (drawn != null) {
+            table.setBaoTile(drawn);
+            table.setBaoOwnerIndex(playerIndex);
+            p.setHandLocked(true);
+            p.setViewedBao(true); // Owner naturally knows the Bao
+            // Bao is NOT added to hand - it's completely independent
+        }
+        return drawn;
+    }
+
+    public void executeViewBao(int playerIndex) {
+        Player p = table.getPlayer(playerIndex);
+        if (table.getBaoTile() != null) {
+            p.setViewedBao(true);
+            p.setHandLocked(true); // Hand is locked once Bao is viewed
+        }
+    }
+
+    public boolean isBaoExhausted() {
+        Tile currentBao = table.getBaoTile();
+        if (currentBao == null)
+            return false;
+
+        int count = 0;
+        for (Tile d : table.getDiscards()) {
+            if (d.equals(currentBao))
+                count++;
+        }
+        for (int i = 0; i < 4; i++) {
+            for (com.allentx.changchunmahjong.model.Meld m : table.getPlayer(i).getMelds()) {
+                for (Tile t : m.getTiles()) {
+                    if (t.equals(currentBao))
+                        count++;
+                }
+            }
+        }
+        return count >= 4;
+    }
+
+    public int getNextEligibleBaoPlayer(int startFromIndex) {
+        // Find the next player in turn order who is an owner or viewer
+        for (int i = 0; i < 4; i++) {
+            int idx = (startFromIndex + i) % 4;
+            Player p = table.getPlayer(idx);
+            if (idx == table.getBaoOwnerIndex() || p.hasViewedBao()) {
+                return idx;
+            }
+        }
+        return -1;
+    }
+
+    public Tile replaceBao(int playerIndex) {
+        Tile newBao = table.drawFromWall();
+        if (newBao != null) {
+            table.setBaoTile(newBao);
+        }
+        return newBao;
     }
 
     public void setCurrentPlayerIndex(int index) {
